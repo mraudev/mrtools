@@ -30,6 +30,17 @@
   --border: rgb(0 0 0 / 0.09);
   --muted-foreground: #6b6b75;
   color-scheme: light;
+
+  /* Chart colors (validated: categorical slots 1–2, fixed status palette) */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+  --status-neutral: #898781;
+  --chart-grid: #e1e0d9;
+  --chart-baseline: #c3c2b7;
 }
 
 .dark {
@@ -42,6 +53,11 @@
   --border: rgb(255 255 255 / 0.08);
   --muted-foreground: #9a9aa3;
   color-scheme: dark;
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --chart-grid: #2c2c2a;
+  --chart-baseline: #383835;
 }
 
 html,

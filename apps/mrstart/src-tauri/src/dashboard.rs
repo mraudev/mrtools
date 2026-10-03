@@ -39,6 +39,7 @@ pub struct DashboardPull {
     pub url: String,
     pub is_draft: bool,
     pub updated_at: String,
+    pub created_at: String,
     pub head: String,
     pub base: String,
     pub head_sha: String,

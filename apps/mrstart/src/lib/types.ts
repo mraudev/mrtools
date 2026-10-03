@@ -147,6 +147,7 @@ export interface DashboardPull {
   title: string;
   url: string;
   isDraft: boolean;
+  createdAt: string;
   updatedAt: string;
   head: string;
   base: string;

@@ -11,6 +11,7 @@ struct Issue {
     title: String,
     html_url: String,
     updated_at: String,
+    created_at: String,
     user: Option<User>,
     repository: Option<RepositoryMeta>,
 }
@@ -116,6 +117,7 @@ fn entry(host: &str, issue: Issue, pull: Option<&Pull>) -> Option<DashboardPull>
         url: issue.html_url,
         is_draft: pull.and_then(|p| p.draft).unwrap_or(false),
         updated_at: issue.updated_at,
+        created_at: issue.created_at,
         head: pull.map(|p| p.head.name.clone()).unwrap_or_default(),
         base: pull.map(|p| p.base.name.clone()).unwrap_or_default(),
         head_sha: pull
@@ -234,6 +236,7 @@ mod tests {
             title: "t".into(),
             html_url: url.into(),
             updated_at: String::new(),
+            created_at: String::new(),
             user: None,
             repository: Some(RepositoryMeta {
                 name: "app".into(),

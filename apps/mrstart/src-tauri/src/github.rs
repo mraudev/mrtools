@@ -15,7 +15,7 @@ query {
   }
 }
 fragment pr on PullRequest {
-  id number title url isDraft updatedAt headRefName baseRefName headRefOid
+  id number title url isDraft updatedAt createdAt headRefName baseRefName headRefOid
   mergeStateStatus viewerCanUpdateBranch reviewDecision
   author { login }
   repository { name owner { login } }
@@ -44,6 +44,7 @@ struct Pull {
     url: String,
     is_draft: bool,
     updated_at: String,
+    created_at: String,
     head_ref_name: String,
     base_ref_name: String,
     head_ref_oid: String,
@@ -99,6 +100,7 @@ fn to_dashboard(search: Search) -> Vec<DashboardPull> {
             url: pr.url,
             is_draft: pr.is_draft,
             updated_at: pr.updated_at,
+            created_at: pr.created_at,
             head: pr.head_ref_name,
             base: pr.base_ref_name,
             head_sha: pr.head_ref_oid,
@@ -182,6 +184,7 @@ mod tests {
             url: url.into(),
             is_draft: false,
             updated_at: String::new(),
+            created_at: String::new(),
             head_ref_name: "feature".into(),
             base_ref_name: "main".into(),
             head_ref_oid: sha.into(),

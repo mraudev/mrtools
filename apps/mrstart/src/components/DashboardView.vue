@@ -19,6 +19,7 @@ import {
   Sparkles,
   TriangleAlert,
 } from "@lucide/vue";
+import DashboardCharts from "./DashboardCharts.vue";
 import Tip from "./ui/Tip.vue";
 import { dashboard, loadDashboard, pullKey, reviewWithClaude, updateBranch } from "@/lib/dashboard";
 import { openInBrowser } from "@/lib/pulls";
@@ -104,6 +105,8 @@ const provider = (pr: DashboardPull) => (pr.provider === "gitea" ? "Gitea" : "Gi
         <TriangleAlert class="mt-0.5 size-4 shrink-0 text-amber-500" />
         <span class="select-text">{{ error }}</span>
       </div>
+
+      <DashboardCharts v-if="dashboard.authored.length || dashboard.reviewRequests.length" />
 
       <section class="rounded-xl border border-border bg-card">
         <h2 class="flex items-center gap-2 border-b border-border px-4 py-3 font-semibold">

@@ -14,7 +14,8 @@ Desktop-Launcher für Entwicklungsprojekte – der Nachfolger von radstart.
 - **Pull Requests in der Kachel**: offener PR des ausgecheckten Branches öffnen bzw. neuen PR im
   Browser erstellen (GitHub und ein Gitea-Server)
 - **Pull-Request-Dashboard** (Gitea und GitHub): eigene offene PRs mit Status (veraltet, Konflikte,
-  aktuell …), Branch per Merge oder Rebase aktualisieren, Liste der angeforderten Reviews
+  aktuell …), Branch per Merge oder Rebase aktualisieren, Liste der angeforderten Reviews; dazu
+  Kennzahlen und Diagramme (Status, Alter, Verteilung auf Repositories) mit Tabellenansicht
 - **Review mit Claude**: bereitet für einen angeforderten Review einen Auftrag samt Diff vor und öffnet
   ihn in Claude Desktop oder Claude Code im Terminal (einstellbar); gesendet wird erst nach Bestätigung
 - **Filter** über alle Projekte (<kbd>Strg</kbd>+<kbd>F</kbd>), <kbd>F5</kbd> aktualisiert
