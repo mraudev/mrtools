@@ -5,7 +5,8 @@ import { Command, FilePlus, FolderCode, FolderOpen, Plus, Sparkles, Trash2, X } 
 import Dialog from "./ui/Dialog.vue";
 import Tip from "./ui/Tip.vue";
 import { api } from "@/lib/api";
-import { baseName, folderName } from "@/lib/actions";
+import { baseName } from "@/lib/actions";
+import { folderName } from "@/lib/types";
 import { categories, categoryView, deleteProject, editor, saveProject, store } from "@/lib/store";
 import { toastError } from "@/lib/toast";
 

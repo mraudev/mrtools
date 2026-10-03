@@ -18,8 +18,14 @@ export interface Project {
 export type GitTool = "fork" | "tortoise";
 export type Theme = "dark" | "light" | "system";
 
+/** A folder whose subfolders appear as projects in the tab `category`. */
+export interface WatchedFolder {
+  path: string;
+  category: string;
+}
+
 export interface Settings {
-  watchedDirectories: string[];
+  watchedFolders: WatchedFolder[];
   /** File names or `*.ext` patterns that are offered as apps automatically. */
   defaultApps: string[];
   /** Command templates with a `{path}` placeholder; empty = built-in default. */
@@ -55,7 +61,7 @@ export const DEFAULT_COMMANDS: Record<LaunchKind, string> = {
 
 export function defaultSettings(): Settings {
   return {
-    watchedDirectories: [],
+    watchedFolders: [],
     defaultApps: ["*.sln", "*.slnx"],
     editorCommand: "",
     terminalCommand: "",
@@ -82,17 +88,27 @@ export function emptyProject(category = ""): Project {
   };
 }
 
-export const WATCHED = "watched";
 export const SETTINGS = "settings";
 export const PULLS = "pulls";
 
-/** Names of tabs: a category name, {@link WATCHED} or {@link SETTINGS}. */
+/** Names of tabs: `cat:<category>`, {@link PULLS} or {@link SETTINGS}. */
 export type View = string;
 
 export interface WatchedEntry {
   name: string;
   path: string;
   apps: string[];
+  /** The watched folder the entry was found in. */
+  root: string;
+}
+
+/** Projects found in watched folders are generated, not edited. */
+export const WATCHED_ID_PREFIX = "watched:";
+export const isWatched = (project: Project) => project.id.startsWith(WATCHED_ID_PREFIX);
+
+/** Last path segment, e.g. the folder name. */
+export function folderName(path: string): string {
+  return path.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? path;
 }
 
 export type GitAction = "pull" | "push";

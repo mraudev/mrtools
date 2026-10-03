@@ -8,6 +8,7 @@ import {
   CloudUpload,
   Code,
   Command,
+  Eye,
   FileCode,
   Folder,
   FolderGit2,
@@ -107,6 +108,9 @@ const quickActions = [
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
           <h3 class="truncate text-[15px] leading-5 font-semibold">{{ project.name }}</h3>
+          <Tip v-if="!editable" text="Aus einem überwachten Ordner">
+            <Eye class="size-3.5 shrink-0 text-muted-foreground" />
+          </Tip>
           <span
             v-if="project.version"
             class="shrink-0 rounded bg-foreground/8 px-1.5 text-xs leading-5 text-muted-foreground tabular-nums"
@@ -117,7 +121,7 @@ const quickActions = [
             v-if="showCategory && project.category"
             class="shrink-0 rounded border border-border px-1.5 text-xs leading-[18px] text-muted-foreground capitalize"
           >
-            {{ project.category === "watched" ? "überwacht" : project.category }}
+            {{ project.category }}
           </span>
         </div>
         <Tip :text="project.path">

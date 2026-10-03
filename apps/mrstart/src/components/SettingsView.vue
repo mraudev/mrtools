@@ -29,9 +29,9 @@ import SecretField from "./ui/SecretField.vue";
 import Tip from "./ui/Tip.vue";
 import { api } from "@/lib/api";
 import { openPath } from "@/lib/actions";
-import { openProjectEditor, store } from "@/lib/store";
+import { addWatchedFolder, categories, openProjectEditor, store } from "@/lib/store";
 import { ACCENTS } from "@/lib/theme";
-import { DEFAULT_COMMANDS, type GitTool, type ReviewTarget, type Theme } from "@/lib/types";
+import { DEFAULT_COMMANDS, folderName, type GitTool, type ReviewTarget, type Theme } from "@/lib/types";
 import { checkForUpdate, updater } from "@/lib/updater";
 
 const settings = computed(() => store.config.settings);
@@ -51,9 +51,7 @@ const projects = computed(() =>
 
 async function addWatched() {
   const directory = await openDialog({ directory: true, title: "Ordner überwachen" });
-  if (typeof directory === "string" && !settings.value.watchedDirectories.includes(directory)) {
-    settings.value.watchedDirectories.push(directory);
-  }
+  if (typeof directory === "string") addWatchedFolder(directory);
 }
 
 const newPattern = ref("");
@@ -163,26 +161,35 @@ function configDirectory() {
     <Section
       :icon="Eye"
       title="Überwachte Ordner"
-      description="Jeder Unterordner erscheint automatisch als Projekt im Tab „Überwacht“."
+      description="Jeder Unterordner erscheint automatisch als Projekt im angegebenen Tab. Gleicher Tab-Name wie eine Projekt-Kategorie = gemeinsamer Tab."
     >
       <template #actions>
         <button class="btn btn-outline" @click="addWatched"><FolderPlus />Ordner hinzufügen</button>
       </template>
-      <ul v-if="settings.watchedDirectories.length" class="divide-y divide-border rounded-lg border border-border">
+      <ul v-if="settings.watchedFolders.length" class="divide-y divide-border rounded-lg border border-border">
         <li
-          v-for="(dir, index) in settings.watchedDirectories"
-          :key="dir"
+          v-for="(folder, index) in settings.watchedFolders"
+          :key="folder.path"
           class="flex items-center gap-2 py-1.5 pr-1.5 pl-3"
         >
-          <span class="min-w-0 flex-1 truncate font-mono text-[13px]">{{ dir }}</span>
+          <span class="min-w-0 flex-1 truncate font-mono text-[13px]">{{ folder.path }}</span>
+          <label class="text-xs text-muted-foreground" :for="`watched-tab-${index}`">Tab</label>
+          <input
+            :id="`watched-tab-${index}`"
+            v-model="folder.category"
+            class="input h-7 w-44 text-[13px]"
+            list="watched-categories"
+            :placeholder="folderName(folder.path)"
+            spellcheck="false"
+          />
           <Tip text="Im Explorer öffnen">
-            <button class="icon-btn" aria-label="Im Explorer öffnen" @click="openPath(dir)"><FolderOpen /></button>
+            <button class="icon-btn" aria-label="Im Explorer öffnen" @click="openPath(folder.path)"><FolderOpen /></button>
           </Tip>
           <Tip text="Nicht mehr überwachen">
             <button
               class="icon-btn"
               aria-label="Nicht mehr überwachen"
-              @click="settings.watchedDirectories.splice(index, 1)"
+              @click="settings.watchedFolders.splice(index, 1)"
             >
               <X />
             </button>
@@ -190,6 +197,9 @@ function configDirectory() {
         </li>
       </ul>
       <p v-else class="text-muted-foreground">Keine Ordner überwacht.</p>
+      <datalist id="watched-categories">
+        <option v-for="c in categories" :key="c" :value="c" />
+      </datalist>
     </Section>
 
     <Section

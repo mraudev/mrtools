@@ -5,8 +5,8 @@ import { FolderPlus, Plus, SearchX } from "@lucide/vue";
 import logo from "@/assets/logo.svg";
 import ProjectTile from "./ProjectTile.vue";
 import { loadPulls } from "@/lib/pulls";
-import { activeView, openProjectEditor, store, visibleProjects } from "@/lib/store";
-import { WATCHED } from "@/lib/types";
+import { activeView, addWatchedFolder, openProjectEditor, store, visibleProjects } from "@/lib/store";
+import { isWatched } from "@/lib/types";
 
 const filtering = computed(() => store.filter.trim() !== "");
 
@@ -21,10 +21,7 @@ watch(
 
 async function addWatchedDirectory() {
   const directory = await openDialog({ directory: true, title: "Ordner überwachen" });
-  if (typeof directory === "string") {
-    store.config.settings.watchedDirectories.push(directory);
-    store.view = WATCHED;
-  }
+  if (typeof directory === "string") store.view = addWatchedFolder(directory);
 }
 </script>
 
@@ -38,7 +35,7 @@ async function addWatchedDirectory() {
         v-for="project in visibleProjects"
         :key="project.id"
         :project="project"
-        :editable="project.category !== WATCHED"
+        :editable="!isWatched(project)"
         :show-category="filtering"
       />
     </div>
@@ -48,8 +45,8 @@ async function addWatchedDirectory() {
       <p>Keine Projekte für „{{ store.filter }}“ gefunden.</p>
     </div>
 
-    <div v-else-if="activeView === WATCHED" class="mt-24 text-center text-muted-foreground">
-      Die überwachten Ordner enthalten keine Unterordner.
+    <div v-else-if="activeView" class="mt-24 text-center text-muted-foreground">
+      In diesem Tab gibt es noch keine Projekte.
     </div>
 
     <div v-else class="mx-auto mt-20 flex max-w-md flex-col items-center text-center">

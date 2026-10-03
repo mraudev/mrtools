@@ -5,13 +5,15 @@ import { toastError } from "./toast";
 import {
   defaultSettings,
   emptyProject,
+  folderName,
   PULLS,
   SETTINGS,
-  WATCHED,
+  WATCHED_ID_PREFIX,
   type Config,
   type Project,
   type Settings,
   type View,
+  type WatchedFolder,
 } from "./types";
 
 export const store = reactive({
@@ -56,8 +58,25 @@ function normalizeSettings(raw: any): Settings {
       (settings as any)[key] = value;
     }
   }
+  settings.watchedFolders = normalizeWatchedFolders(raw);
   return settings;
 }
+
+/** Validates watched folders and migrates the former `watchedDirectories` list
+ *  (one shared tab) to one tab per folder, named after the folder. */
+function normalizeWatchedFolders(raw: any): WatchedFolder[] {
+  const list: any[] = Array.isArray(raw?.watchedFolders)
+    ? raw.watchedFolders
+    : Array.isArray(raw?.watchedDirectories)
+      ? raw.watchedDirectories.map((path: unknown) => ({ path }))
+      : [];
+  return list
+    .filter((f) => typeof f?.path === "string" && f.path.trim() !== "")
+    .map((f) => ({ path: f.path, category: typeof f.category === "string" ? f.category : folderName(f.path) }));
+}
+
+/** Tab of a watched folder; an empty name falls back to the folder name. */
+export const watchedCategory = (folder: WatchedFolder) => folder.category.trim() || folderName(folder.path);
 
 function normalizeConfig(raw: any): Config {
   return {
@@ -75,16 +94,20 @@ function scheduleSave() {
 }
 
 export async function loadWatched() {
-  const { watchedDirectories, defaultApps } = store.config.settings;
-  if (watchedDirectories.length === 0) {
+  const { watchedFolders, defaultApps } = store.config.settings;
+  if (watchedFolders.length === 0) {
     store.watched = [];
     return;
   }
   try {
-    const entries = await api.watchedProjects(watchedDirectories, defaultApps);
+    const entries = await api.watchedProjects(
+      watchedFolders.map((f) => f.path),
+      defaultApps,
+    );
+    const categoryOf = new Map(watchedFolders.map((f) => [f.path, watchedCategory(f)]));
     store.watched = entries.map((e) => ({
-      ...emptyProject(WATCHED),
-      id: `watched:${e.path}`,
+      ...emptyProject(categoryOf.get(e.root) ?? folderName(e.root)),
+      id: `${WATCHED_ID_PREFIX}${e.path}`,
       name: e.name,
       path: e.path,
       apps: e.apps,
@@ -110,7 +133,7 @@ export async function initStore() {
     watch(() => store.config, scheduleSave, { deep: true });
   }
   watch(
-    () => [settings().watchedDirectories, settings().defaultApps, store.refreshTick],
+    () => [settings().watchedFolders, settings().defaultApps, store.refreshTick],
     loadWatched,
     { deep: true, immediate: true },
   );
@@ -135,28 +158,58 @@ function sortProjects(list: Project[]) {
 
 export const categoryView = (category: string): View => `cat:${category}`;
 
+/** Watches `path` in its own tab (named after the folder); returns that tab. */
+export function addWatchedFolder(path: string): View {
+  const folders = store.config.settings.watchedFolders;
+  let folder = folders.find((f) => f.path.toLowerCase() === path.toLowerCase());
+  if (!folder) {
+    folder = { path, category: folderName(path) };
+    folders.push(folder);
+  }
+  return categoryView(watchedCategory(folder));
+}
+
+/** Tabs come from project categories and from the tabs of watched folders. */
 export const categories = computed(() =>
-  [...new Set(store.config.projects.map((p) => p.category.trim()).filter(Boolean))].sort(
-    collator.compare,
-  ),
+  [
+    ...new Set(
+      [
+        ...store.config.projects.map((p) => p.category.trim()),
+        ...store.config.settings.watchedFolders.map(watchedCategory),
+      ].filter(Boolean),
+    ),
+  ].sort(collator.compare),
 );
+
+/** A watched subfolder that is also configured as a project is shown only once. */
+function watchedWithoutConfigured() {
+  const configured = new Set(store.config.projects.map((p) => p.path.toLowerCase()));
+  return store.watched.filter((p) => !configured.has(p.path.toLowerCase()));
+}
+
+function projectsIn(category: string): Project[] {
+  return sortProjects([
+    ...store.config.projects.filter((p) => p.category.trim() === category),
+    ...watchedWithoutConfigured().filter((p) => p.category === category),
+  ]);
+}
 
 export interface Tab {
   id: View;
   label: string;
   count: number;
+  /** The tab shows (also) the subfolders of a watched folder. */
+  watched: boolean;
 }
 
 export const tabs = computed<Tab[]>(() => {
-  const result: Tab[] = categories.value.map((category) => ({
+  const watchedTabs = new Set(store.config.settings.watchedFolders.map(watchedCategory));
+  return categories.value.map((category) => ({
     id: categoryView(category),
     label: category,
-    count: store.config.projects.filter((p) => p.category.trim() === category).length,
+    count: projectsIn(category).length,
+    watched: watchedTabs.has(category),
   }));
-  if (store.config.settings.watchedDirectories.length > 0) {
-    result.push({ id: WATCHED, label: "Überwacht", count: store.watched.length });
-  }
-  return result;
 });
 
 /** The view actually shown: falls back to the first tab if the selected one vanished. */
@@ -175,24 +228,14 @@ export function currentCategory(): string {
 export const visibleProjects = computed<Project[]>(() => {
   const query = store.filter.trim().toLowerCase();
   if (query) {
-    const configuredPaths = new Set(store.config.projects.map((p) => p.path.toLowerCase()));
-    const all = [
-      ...store.config.projects,
-      ...store.watched.filter((p) => !configuredPaths.has(p.path.toLowerCase())),
-    ];
     return sortProjects(
-      all.filter((p) =>
+      [...store.config.projects, ...watchedWithoutConfigured()].filter((p) =>
         [p.name, p.path, p.version, p.category].some((s) => s.toLowerCase().includes(query)),
       ),
     );
   }
   const view = activeView.value;
-  if (view === WATCHED) return store.watched;
-  if (view.startsWith("cat:")) {
-    const category = view.slice(4);
-    return sortProjects(store.config.projects.filter((p) => p.category.trim() === category));
-  }
-  return [];
+  return view.startsWith("cat:") ? projectsIn(view.slice(4)) : [];
 });
 
 // ---------------------------------------------------------------------------

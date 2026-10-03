@@ -37,7 +37,3 @@ export function baseName(path: string): string {
   const dot = file.lastIndexOf(".");
   return dot > 0 ? file.slice(0, dot) : file;
 }
-
-export function folderName(path: string): string {
-  return path.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? path;
-}

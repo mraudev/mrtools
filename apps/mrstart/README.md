@@ -5,7 +5,8 @@ Desktop-Launcher für Entwicklungsprojekte – der Nachfolger von radstart.
 ## Funktionen
 
 - **Projektkacheln** gruppiert nach Kategorie (jede Kategorie ist ein Tab), sortiert nach Version
-- **Überwachte Ordner** – jeder Unterordner erscheint automatisch als Kachel
+- **Überwachte Ordner** (beliebig viele) – jeder Unterordner erscheint automatisch als Kachel im Tab
+  des Ordners; mit dem Tab-Namen einer Projekt-Kategorie teilen sie sich einen Tab mit den Projekten
 - **Schnellaktionen** je Projekt: Editor, Explorer, Git Bash, Terminal (Befehle in den Einstellungen anpassbar)
 - **Apps** (`.sln`, `.exe`, `.bat` …) und **eigene Befehle** pro Projekt; Standard-Apps per Muster wie `*.sln`
 - **Git**: aktueller Branch, Pull (`fetch` + `rebase --rebase-merges --autostash`) und Push mit Live-Konsole,

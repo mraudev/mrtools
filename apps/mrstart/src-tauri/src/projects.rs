@@ -49,6 +49,8 @@ pub struct WatchedEntry {
     name: String,
     path: String,
     apps: Vec<String>,
+    /// The watched directory this entry was found in, exactly as passed in.
+    root: String,
 }
 
 /// Lists the direct subfolders of every watched directory.
@@ -60,13 +62,14 @@ pub async fn watched_projects(
     tauri::async_runtime::spawn_blocking(move || {
         let mut entries: Vec<WatchedEntry> = directories
             .iter()
-            .filter_map(|dir| fs::read_dir(dir).ok())
-            .flat_map(|read| read.flatten())
-            .filter(|e| e.path().is_dir() && !e.file_name().to_string_lossy().starts_with('.'))
-            .map(|e| WatchedEntry {
+            .filter_map(|dir| Some((dir, fs::read_dir(dir).ok()?)))
+            .flat_map(|(dir, read)| read.flatten().map(move |e| (dir, e)))
+            .filter(|(_, e)| e.path().is_dir() && !e.file_name().to_string_lossy().starts_with('.'))
+            .map(|(dir, e)| WatchedEntry {
                 name: e.file_name().to_string_lossy().into_owned(),
                 path: e.path().to_string_lossy().into_owned(),
                 apps: find_files(&e.path(), &default_apps),
+                root: dir.clone(),
             })
             .collect();
         entries.sort_by_key(|e| e.name.to_lowercase());

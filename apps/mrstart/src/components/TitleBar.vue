@@ -18,7 +18,7 @@ import logo from "@/assets/logo.svg";
 import Tip from "./ui/Tip.vue";
 import { dashboard } from "@/lib/dashboard";
 import { activeView, openProjectEditor, refresh, store, tabs } from "@/lib/store";
-import { PULLS, SETTINGS, WATCHED } from "@/lib/types";
+import { PULLS, SETTINGS } from "@/lib/types";
 
 const appWindow = getCurrentWindow();
 const maximized = ref(false);
@@ -107,7 +107,7 @@ function selectTab(id: string) {
         "
         @click="selectTab(tab.id)"
       >
-        <Eye v-if="tab.id === WATCHED" />
+        <Eye v-if="tab.watched" />
         <Briefcase v-else />
         <span class="capitalize">{{ tab.label }}</span>
         <span class="rounded bg-foreground/8 px-1 text-[11px] leading-4 tabular-nums">{{ tab.count }}</span>
