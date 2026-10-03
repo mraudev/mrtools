@@ -2285,7 +2285,7 @@ dependencies = [
 
 [[package]]
 name = "mrstart"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "keyring-core",
  "reqwest",

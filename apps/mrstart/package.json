@@ -1,7 +1,7 @@
 {
   "name": "mrstart",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Desktop-Launcher für Entwicklungsprojekte",
   "author": "Michael Rau <dev@mraudev.com>",
   "repository": {
