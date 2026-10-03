@@ -2,6 +2,8 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import type {
   BranchInfo,
   Config,
+  Dashboard,
+  DashboardPull,
   GitAction,
   GitEvent,
   PullRequestResult,
@@ -36,6 +38,21 @@ export const api = {
 
   pullRequests: (query: { paths: string[]; giteaHost: string }) =>
     invoke<PullRequestResult>("pull_requests", { query }),
+
+  dashboard: (giteaHost: string) => invoke<Dashboard>("dashboard", { giteaHost }),
+  updatePullBranch: (pull: DashboardPull, rebase: boolean, giteaHost: string) =>
+    invoke<void>("update_pull_branch", {
+      request: {
+        provider: pull.provider,
+        nodeId: pull.nodeId,
+        owner: pull.owner,
+        repo: pull.repo,
+        number: pull.number,
+        headSha: pull.headSha,
+        rebase,
+        giteaHost,
+      },
+    }),
 
   // Tokens can only be written or deleted – the backend never returns them.
   secretStatus: () => invoke<Record<SecretName, boolean>>("secret_status"),

@@ -10,7 +10,10 @@ Desktop-Launcher für Entwicklungsprojekte – der Nachfolger von radstart.
 - **Apps** (`.sln`, `.exe`, `.bat` …) und **eigene Befehle** pro Projekt; Standard-Apps per Muster wie `*.sln`
 - **Git**: aktueller Branch, Pull (`fetch` + `rebase --rebase-merges --autostash`) und Push mit Live-Konsole,
   Fork bzw. TortoiseGit für Änderungen/Log
-- **Offene Pull Requests** des ausgecheckten Branches (GitHub und ein Gitea-Server)
+- **Pull Requests in der Kachel**: offener PR des ausgecheckten Branches öffnen bzw. neuen PR im
+  Browser erstellen (GitHub und ein Gitea-Server)
+- **Pull-Request-Dashboard** (Gitea und GitHub): eigene offene PRs mit Status (veraltet, Konflikte,
+  aktuell …), Branch per Merge oder Rebase aktualisieren, Liste der angeforderten Reviews
 - **Filter** über alle Projekte (<kbd>Strg</kbd>+<kbd>F</kbd>), <kbd>F5</kbd> aktualisiert
 - Dunkles/helles Design, Akzentfarbe wählbar
 - **Automatische Updates** über GitHub Releases (beim Start und alle 6 Stunden)

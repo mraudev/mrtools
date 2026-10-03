@@ -79,6 +79,7 @@ export function emptyProject(category = ""): Project {
 
 export const WATCHED = "watched";
 export const SETTINGS = "settings";
+export const PULLS = "pulls";
 
 /** Names of tabs: a category name, {@link WATCHED} or {@link SETTINGS}. */
 export type View = string;
@@ -113,6 +114,33 @@ export interface PullRequest {
 }
 
 export type SecretName = "github" | "gitea";
+
+export type PullStatus = "behind" | "conflict" | "clean" | "blocked" | "unstable" | "draft" | "unknown";
+
+export interface DashboardPull {
+  provider: "gitea" | "github";
+  nodeId: string;
+  owner: string;
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  isDraft: boolean;
+  updatedAt: string;
+  head: string;
+  base: string;
+  headSha: string;
+  status: PullStatus;
+  canUpdate: boolean;
+  reviewDecision: string | null;
+  author: string;
+}
+
+export interface Dashboard {
+  authored: DashboardPull[];
+  reviewRequests: DashboardPull[];
+  errors: string[];
+}
 
 export interface PullRequestResult {
   pulls: PullRequest[];

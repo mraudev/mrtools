@@ -1,5 +1,8 @@
 mod config;
+mod dashboard;
 mod git;
+mod gitea;
+mod github;
 mod launch;
 mod projects;
 mod pulls;
@@ -27,6 +30,8 @@ pub fn run() {
             git::git_run,
             pulls::branch_info,
             pulls::pull_requests,
+            dashboard::dashboard,
+            dashboard::update_pull_branch,
             secrets::secret_status,
             secrets::set_secret,
             secrets::delete_secret,

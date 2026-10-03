@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, watch } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { TooltipProvider } from "reka-ui";
 import { TriangleAlert } from "@lucide/vue";
+import DashboardView from "./components/DashboardView.vue";
 import GitConsoleDialog from "./components/GitConsoleDialog.vue";
 import ProjectDialog from "./components/ProjectDialog.vue";
 import ProjectsView from "./components/ProjectsView.vue";
@@ -11,13 +12,17 @@ import StatusBar from "./components/StatusBar.vue";
 import TitleBar from "./components/TitleBar.vue";
 import UpdateDialog from "./components/UpdateDialog.vue";
 import Toaster from "./components/ui/Toaster.vue";
+import { loadDashboard } from "./lib/dashboard";
 import { activeView, initStore, store } from "./lib/store";
 import { toast } from "./lib/toast";
-import { SETTINGS } from "./lib/types";
+import { PULLS, SETTINGS } from "./lib/types";
 import { startUpdateChecks } from "./lib/updater";
 
 onMounted(async () => {
   await initStore();
+  // Keeps the review counter in the tab bar current (startup and F5).
+  loadDashboard();
+  watch(() => store.refreshTick, loadDashboard);
   listen<{ command: string; code: number | null }>("launch-failed", ({ payload }) => {
     toast("error", `Befehl beendet mit Exit-Code ${payload.code ?? "?"}`, payload.command);
   });
@@ -42,7 +47,10 @@ onMounted(async () => {
       </div>
       <main class="min-h-0 flex-1 overflow-y-auto">
         <template v-if="store.loaded">
-          <SettingsView v-if="activeView === SETTINGS" />
+          <!-- A filter always searches the projects, whatever tab is open. -->
+          <ProjectsView v-if="store.filter.trim()" />
+          <SettingsView v-else-if="activeView === SETTINGS" />
+          <DashboardView v-else-if="activeView === PULLS" />
           <ProjectsView v-else />
         </template>
       </main>

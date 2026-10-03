@@ -20,12 +20,24 @@ fn is_host(s: &str) -> bool {
 
 /// Owner/repository names as used by GitHub and Gitea. Rejects anything that
 /// could alter the API URL (slashes, `..`, `?`, `#`, …).
-fn is_name(s: &str) -> bool {
+pub(crate) fn is_name(s: &str) -> bool {
     !s.is_empty()
         && s != "."
         && s != ".."
         && s.chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+}
+
+/// HTTP client for all API calls: HTTPS only and no redirects, so a token can
+/// never be carried to another URL.
+pub(crate) fn http_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .user_agent("mrstart")
+        .timeout(Duration::from_secs(15))
+        .https_only(true)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|e| e.to_string())
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -73,7 +85,7 @@ fn parse_remote(url: &str) -> Option<Remote> {
 }
 
 /// The configured Gitea host, if it is set and syntactically valid.
-fn gitea_host(raw: &str) -> Option<String> {
+pub(crate) fn gitea_host(raw: &str) -> Option<String> {
     let host = raw.trim().to_lowercase();
     is_host(&host).then_some(host)
 }
@@ -288,14 +300,7 @@ pub async fn pull_requests(query: PullRequestQuery) -> PullRequestResult {
         }
     }
 
-    let client = match reqwest::Client::builder()
-        .user_agent("mrstart")
-        .timeout(Duration::from_secs(10))
-        .https_only(true)
-        // A redirect must never carry a token to another URL.
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-    {
+    let client = match http_client() {
         Ok(client) => client,
         Err(e) => {
             result.errors.push(PullRequestError {

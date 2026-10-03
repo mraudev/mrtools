@@ -276,12 +276,18 @@ function configDirectory() {
         <label class="text-sm text-muted-foreground" for="gitea-token">Gitea-Token</label>
         <SecretField id="gitea-token" name="gitea" />
       </div>
-      <p class="mt-2 text-xs text-muted-foreground">
-        Tokens werden verschlüsselt in der Windows-Anmeldeinformationsverwaltung abgelegt (nur auf diesem
-        PC), nie in der Konfigurationsdatei, und lassen sich nicht wieder anzeigen. Sie gehen nur per HTTPS
-        an api.github.com bzw. den Gitea-Host. Empfehlung: Fine-grained Token, nur Lesezugriff auf
-        „Pull requests“ der benötigten Repositories.
-      </p>
+      <div class="mt-2 space-y-1 text-xs text-muted-foreground">
+        <p>
+          Tokens werden verschlüsselt in der Windows-Anmeldeinformationsverwaltung abgelegt (nur auf diesem
+          PC), nie in der Konfigurationsdatei, und lassen sich nicht wieder anzeigen. Sie gehen nur per HTTPS
+          an api.github.com bzw. den Gitea-Host.
+        </p>
+        <p>
+          Benötigte Rechte – <b>Gitea</b>: „repository“ und „issue“ lesen; zum Aktualisieren von Branches
+          „repository“ schreiben. <b>GitHub</b> (Fine-grained): „Pull requests“ lesen; zum Aktualisieren lesen
+          &amp; schreiben. Nur so viele Rechte vergeben wie nötig.
+        </p>
+      </div>
     </Section>
 
     <Section :icon="Palette" title="Darstellung">

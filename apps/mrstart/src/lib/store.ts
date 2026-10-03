@@ -5,6 +5,7 @@ import { toastError } from "./toast";
 import {
   defaultSettings,
   emptyProject,
+  PULLS,
   SETTINGS,
   WATCHED,
   type Config,
@@ -159,7 +160,7 @@ export const tabs = computed<Tab[]>(() => {
 
 /** The view actually shown: falls back to the first tab if the selected one vanished. */
 export const activeView = computed<View>(() => {
-  if (store.view === SETTINGS) return SETTINGS;
+  if (store.view === SETTINGS || store.view === PULLS) return store.view;
   if (tabs.value.some((t) => t.id === store.view)) return store.view;
   return tabs.value[0]?.id ?? "";
 });

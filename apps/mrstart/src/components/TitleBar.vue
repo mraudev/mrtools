@@ -1,11 +1,24 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Briefcase, Copy, Eye, Minus, Plus, RefreshCw, Search, Settings, Square, X } from "@lucide/vue";
+import {
+  Briefcase,
+  Copy,
+  Eye,
+  GitPullRequest,
+  Minus,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  Square,
+  X,
+} from "@lucide/vue";
 import logo from "@/assets/logo.svg";
 import Tip from "./ui/Tip.vue";
+import { dashboard } from "@/lib/dashboard";
 import { activeView, openProjectEditor, refresh, store, tabs } from "@/lib/store";
-import { SETTINGS, WATCHED } from "@/lib/types";
+import { PULLS, SETTINGS, WATCHED } from "@/lib/types";
 
 const appWindow = getCurrentWindow();
 const maximized = ref(false);
@@ -74,6 +87,31 @@ function selectTab(id: string) {
         <span class="capitalize">{{ tab.label }}</span>
         <span class="rounded bg-foreground/8 px-1 text-[11px] leading-4 tabular-nums">{{ tab.count }}</span>
       </button>
+
+      <div v-if="tabs.length" class="mx-1 h-4 w-px shrink-0 bg-border" />
+      <Tip
+        :text="dashboard.reviewRequests.length ? `${dashboard.reviewRequests.length} Review(s) angefordert` : undefined"
+        side="bottom"
+      >
+        <button
+          class="inline-flex h-7 shrink-0 items-center gap-2 rounded-md px-2.5 text-[13px] transition-colors [&_svg]:size-3.5"
+          :class="
+            activeView === PULLS && !store.filter
+              ? 'bg-accent/15 font-medium text-accent-text'
+              : 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground'
+          "
+          @click="selectTab(PULLS)"
+        >
+          <GitPullRequest />
+          Pull Requests
+          <span
+            v-if="dashboard.reviewRequests.length"
+            class="rounded bg-accent px-1 text-[11px] leading-4 font-semibold text-accent-foreground tabular-nums"
+          >
+            {{ dashboard.reviewRequests.length }}
+          </span>
+        </button>
+      </Tip>
     </nav>
 
     <div class="min-w-6 flex-1" data-tauri-drag-region />
