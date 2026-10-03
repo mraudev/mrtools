@@ -9,6 +9,7 @@ import {
   WATCHED,
   type Config,
   type Project,
+  type Settings,
   type View,
 } from "./types";
 
@@ -43,10 +44,23 @@ function normalizeProject(raw: any): Project {
   };
 }
 
+/** Takes only known keys with the expected type – unknown entries (e.g. tokens
+ *  from an imported radstart file) are dropped and never written back. */
+function normalizeSettings(raw: any): Settings {
+  const settings = defaultSettings();
+  for (const key of Object.keys(settings) as (keyof Settings)[]) {
+    const value = raw?.[key];
+    if (value !== undefined && typeof value === typeof settings[key] && Array.isArray(value) === Array.isArray(settings[key])) {
+      (settings as any)[key] = value;
+    }
+  }
+  return settings;
+}
+
 function normalizeConfig(raw: any): Config {
   return {
     projects: Array.isArray(raw?.projects) ? raw.projects.map(normalizeProject) : [],
-    settings: { ...defaultSettings(), ...(raw?.settings ?? {}) },
+    settings: normalizeSettings(raw?.settings),
   };
 }
 

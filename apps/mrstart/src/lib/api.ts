@@ -4,6 +4,7 @@ import type {
   GitAction,
   GitEvent,
   PullRequestResult,
+  SecretName,
   WatchedEntry,
 } from "./types";
 
@@ -31,10 +32,11 @@ export const api = {
     return invoke<void>("git_run", { path, action, onEvent: channel });
   },
 
-  pullRequests: (query: {
-    paths: string[];
-    githubToken: string;
-    giteaHost: string;
-    giteaToken: string;
-  }) => invoke<PullRequestResult>("pull_requests", { query }),
+  pullRequests: (query: { paths: string[]; giteaHost: string }) =>
+    invoke<PullRequestResult>("pull_requests", { query }),
+
+  // Tokens can only be written or deleted – the backend never returns them.
+  secretStatus: () => invoke<Record<SecretName, boolean>>("secret_status"),
+  setSecret: (name: SecretName, value: string) => invoke<void>("set_secret", { name, value }),
+  deleteSecret: (name: SecretName) => invoke<void>("delete_secret", { name }),
 };

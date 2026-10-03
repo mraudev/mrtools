@@ -3,6 +3,13 @@ dist
 *.local
 *.log
 
+# Schlüssel und Secrets gehören nie ins Repository
+*.key
+*.pem
+*.pfx
+.env
+.env.*
+
 .vscode/*
 !.vscode/extensions.json
 .idea

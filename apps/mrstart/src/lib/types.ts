@@ -30,9 +30,8 @@ export interface Settings {
   /** Empty = auto-detect. */
   forkPath: string;
   tortoisePath: string;
-  githubToken: string;
+  /** Tokens are not part of the settings; they live in the credential store. */
   giteaHost: string;
-  giteaToken: string;
   theme: Theme;
   accent: string;
 }
@@ -60,9 +59,7 @@ export function defaultSettings(): Settings {
     gitTool: "fork",
     forkPath: "",
     tortoisePath: "",
-    githubToken: "",
     giteaHost: "",
-    giteaToken: "",
     theme: "dark",
     accent: "amber",
   };
@@ -105,6 +102,8 @@ export interface PullRequest {
   title: string;
   url: string;
 }
+
+export type SecretName = "github" | "gitea";
 
 export interface PullRequestResult {
   pulls: PullRequest[];

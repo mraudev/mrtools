@@ -3,9 +3,12 @@ mod git;
 mod launch;
 mod projects;
 mod pulls;
+mod secrets;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    secrets::init().expect("Windows-Anmeldeinformationsverwaltung nicht verfügbar");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
@@ -24,6 +27,9 @@ pub fn run() {
             git::git_branch,
             git::git_run,
             pulls::pull_requests,
+            secrets::secret_status,
+            secrets::set_secret,
+            secrets::delete_secret,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

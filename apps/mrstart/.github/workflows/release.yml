@@ -9,15 +9,23 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release:
     runs-on: windows-latest
+    # Die Signatur-Secrets liegen im Environment „release“, das nur für
+    # Tags `v*` freigegeben ist (siehe README).
+    environment: release
+    permissions:
+      contents: write # Release anlegen und Dateien hochladen
     steps:
-      - uses: actions/checkout@v7
+      # Actions sind auf Commit-SHAs festgelegt, damit ein verschobener Tag
+      # keinen fremden Code an den Signaturschlüssel lässt.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Tag gegen package.json prüfen
         shell: bash
@@ -33,26 +41,29 @@ jobs:
         shell: bash
         run: |
           previous=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          delimiter="NOTES_${GITHUB_RUN_ID}_${RANDOM}${RANDOM}"
           {
-            echo 'body<<EOF'
+            echo "body<<$delimiter"
             git log --no-merges --pretty='- %s' "${previous:+$previous..}$GITHUB_REF_NAME"
-            echo 'EOF'
+            echo "$delimiter"
           } >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
-          cache: npm
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
-          workspaces: src-tauri -> target
+          toolchain: stable
 
-      - run: npm ci
+      # Kein Build-Cache im Release-Job: ein manipulierter Cache aus einem
+      # anderen Lauf könnte sonst in den signierten Build gelangen.
 
-      - uses: tauri-apps/tauri-action@v1
+      # --ignore-scripts: keine Install-Skripte aus Abhängigkeiten ausführen.
+      - run: npm ci --ignore-scripts
+
+      # Nur dieser Schritt sieht den Signaturschlüssel.
+      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

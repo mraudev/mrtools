@@ -16,10 +16,9 @@ let request = 0;
 
 async function load() {
   const current = ++request;
-  const { githubToken, giteaHost, giteaToken } = store.config.settings;
   const result = props.paths.length
     ? await api
-        .pullRequests({ paths: props.paths, githubToken, giteaHost, giteaToken })
+        .pullRequests({ paths: props.paths, giteaHost: store.config.settings.giteaHost })
         .catch((e) => ({ pulls: [], errors: [String(e)] }))
     : { pulls: [], errors: [] };
   // Ignore responses of requests that were superseded by a tab switch.

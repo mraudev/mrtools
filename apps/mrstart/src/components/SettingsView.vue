@@ -24,7 +24,7 @@ import {
 } from "@lucide/vue";
 import Section from "./ui/Section.vue";
 import Segmented from "./ui/Segmented.vue";
-import SecretInput from "./ui/SecretInput.vue";
+import SecretField from "./ui/SecretField.vue";
 import Tip from "./ui/Tip.vue";
 import { api } from "@/lib/api";
 import { openPath } from "@/lib/actions";
@@ -254,20 +254,23 @@ function configDirectory() {
     >
       <div class="grid grid-cols-[7rem_1fr] items-center gap-x-3 gap-y-2">
         <label class="text-sm text-muted-foreground" for="github-token">GitHub-Token</label>
-        <SecretInput id="github-token" v-model="settings.githubToken" placeholder="optional – für private Repos und höheres Rate-Limit" />
+        <SecretField id="github-token" name="github" />
         <label class="text-sm text-muted-foreground" for="gitea-host">Gitea-Host</label>
         <input
           id="gitea-host"
-          v-model="settings.giteaHost"
+          v-model.trim="settings.giteaHost"
           class="input font-mono text-[13px]"
           placeholder="z. B. gitea.example.com"
           spellcheck="false"
         />
         <label class="text-sm text-muted-foreground" for="gitea-token">Gitea-Token</label>
-        <SecretInput id="gitea-token" v-model="settings.giteaToken" placeholder="optional" />
+        <SecretField id="gitea-token" name="gitea" />
       </div>
       <p class="mt-2 text-xs text-muted-foreground">
-        Tokens werden unverschlüsselt in der Konfigurationsdatei gespeichert – nur Lese-Rechte vergeben.
+        Tokens werden verschlüsselt in der Windows-Anmeldeinformationsverwaltung abgelegt (nur auf diesem
+        PC), nie in der Konfigurationsdatei, und lassen sich nicht wieder anzeigen. Sie gehen nur per HTTPS
+        an api.github.com bzw. den Gitea-Host. Empfehlung: Fine-grained Token, nur Lesezugriff auf
+        „Pull requests“ der benötigten Repositories.
       </p>
     </Section>
 

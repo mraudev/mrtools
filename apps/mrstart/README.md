@@ -51,15 +51,37 @@ npm run build
 cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
+## Sicherheit
+
+- **Tokens** (GitHub/Gitea) liegen verschlüsselt in der Windows-Anmeldeinformationsverwaltung
+  (nur auf diesem PC), nie in der Konfigurationsdatei. Die Oberfläche kann Tokens nur setzen oder
+  löschen, nicht auslesen. Unbekannte Felder in der Konfiguration (z. B. Tokens aus einer
+  radstart-Datei) werden beim Laden verworfen.
+- Tokens gehen ausschließlich per HTTPS an `api.github.com` bzw. den eingetragenen Gitea-Host,
+  ohne Weiterleitungen. Owner/Repo aus den Git-Remotes werden validiert, PR-Links nur geöffnet,
+  wenn sie auf denselben Host zeigen.
+- Strikte Content-Security-Policy, keine entfernten Skripte, keine HTML-Ausgabe von Fremddaten.
+- Updates werden nur installiert, wenn ihre Signatur zum eingebauten öffentlichen Schlüssel passt.
+- Die GitHub-Actions sind auf Commit-SHAs festgelegt, laufen mit minimalen Rechten, ohne
+  Install-Skripte (`npm ci --ignore-scripts`) und – im Release – ohne Build-Cache. Nur der
+  eigentliche Build-Schritt sieht den Signaturschlüssel.
+
 ## Release & Auto-Update
 
-**Einmalig:** Im Repository unter *Settings → Secrets and variables → Actions* das Secret
-`TAURI_SIGNING_PRIVATE_KEY` mit dem Inhalt von `%USERPROFILE%\.tauri\mrstart.key` anlegen.
-Hat der Schlüssel ein Passwort, zusätzlich `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+**Einmalig – Signaturschlüssel (mit Passwort) erzeugen:**
 
-> Den privaten Schlüssel sicher aufbewahren: Ohne ihn lassen sich keine Updates mehr signieren,
-> und installierte Versionen würden nicht mehr aktualisiert. Der öffentliche Schlüssel steht in
-> `src-tauri/tauri.conf.json`.
+```bash
+npx tauri signer generate -f -w C:\Users\MRau9\.tauri\mrstart.key
+```
+
+Den Inhalt von `mrstart.key.pub` als `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`
+eintragen. Schlüsseldatei und Passwort zusätzlich im Passwort-Manager sichern – ohne sie lassen
+sich keine Updates mehr signieren und installierte Versionen würden nicht mehr aktualisiert.
+Danach kann die lokale Schlüsseldatei gelöscht werden.
+
+**Einmalig – GitHub einrichten:** Unter *Settings → Environments* ein Environment `release` anlegen,
+bei *Deployment branches and tags* nur Tags `v*` erlauben und dort zwei Environment-Secrets setzen:
+`TAURI_SIGNING_PRIVATE_KEY` (Inhalt von `mrstart.key`) und `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 
 **Neue Version veröffentlichen:**
 
