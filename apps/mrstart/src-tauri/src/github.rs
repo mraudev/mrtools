@@ -102,7 +102,13 @@ fn to_dashboard(search: Search) -> Vec<DashboardPull> {
             head: pr.head_ref_name,
             base: pr.base_ref_name,
             head_sha: pr.head_ref_oid,
-            status: status(&pr.merge_state_status),
+            // mergeStateStatus only reports BEHIND when branch protection
+            // requires up-to-date branches; viewerCanUpdateBranch is reliable.
+            status: if pr.viewer_can_update_branch {
+                Status::Behind
+            } else {
+                status(&pr.merge_state_status)
+            },
             can_update: pr.viewer_can_update_branch,
             review_decision: pr.review_decision,
             author: pr.author.map(|a| a.login).unwrap_or_default(),
