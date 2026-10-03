@@ -9,6 +9,7 @@ import {
 } from "reka-ui";
 import {
   ChevronDown,
+  Clock,
   GitCommitVertical,
   GitMerge,
   GitPullRequest,
@@ -24,6 +25,7 @@ import Tip from "./ui/Tip.vue";
 import { dashboard, loadDashboard, pullKey, reviewWithClaude, updateBranch } from "@/lib/dashboard";
 import { openInBrowser } from "@/lib/pulls";
 import { store } from "@/lib/store";
+import { ago, dateTime, olderThan, WEEK_MS } from "@/lib/time";
 import { SETTINGS, type DashboardPull, type PullStatus } from "@/lib/types";
 
 onMounted(loadDashboard);
@@ -44,23 +46,8 @@ const reviewBadge: Record<string, { label: string; class: string }> = {
   REVIEW_REQUIRED: { label: "Review ausstehend", class: "text-muted-foreground" },
 };
 
-const relative = new Intl.RelativeTimeFormat("de", { numeric: "auto" });
-function ago(iso: string): string {
-  const seconds = (Date.parse(iso) - Date.now()) / 1000;
-  if (Number.isNaN(seconds)) return "";
-  const steps: [Intl.RelativeTimeFormatUnit, number][] = [
-    ["year", 31536000],
-    ["month", 2592000],
-    ["week", 604800],
-    ["day", 86400],
-    ["hour", 3600],
-    ["minute", 60],
-  ];
-  for (const [unit, size] of steps) {
-    if (Math.abs(seconds) >= size) return relative.format(Math.round(seconds / size), unit);
-  }
-  return "gerade eben";
-}
+/** No activity on the pull request for more than a week. */
+const isStale = (pr: DashboardPull) => olderThan(pr.updatedAt, WEEK_MS);
 
 const reviewTip = computed(
   () =>
@@ -70,9 +57,6 @@ const reviewTip = computed(
 
 const time = (date: Date) => date.toLocaleTimeString("de", { hour: "2-digit", minute: "2-digit" });
 const provider = (pr: DashboardPull) => (pr.provider === "gitea" ? "Gitea" : "GitHub");
-
-const dateTime = (iso: string) =>
-  new Date(iso).toLocaleString("de", { dateStyle: "medium", timeStyle: "short" });
 
 function baseTip(pr: DashboardPull): string {
   const base = pr.base || "dem Ziel-Branch";
@@ -135,7 +119,12 @@ function baseTip(pr: DashboardPull): string {
                 <span class="rounded border border-border px-1">{{ provider(pr) }}</span>
                 <span>{{ pr.owner }}/{{ pr.repo }} #{{ pr.number }}</span>
                 <span v-if="pr.head" class="font-mono">{{ pr.head }} → {{ pr.base }}</span>
-                <span>geändert {{ ago(pr.updatedAt) }}</span>
+                <Tip v-if="isStale(pr)" :text="`Seit über einer Woche keine Aktivität (zuletzt am ${dateTime(pr.updatedAt)}).`">
+                  <span class="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 font-medium text-amber-700 dark:text-amber-400">
+                    <Clock class="size-3" />geändert {{ ago(pr.updatedAt) }}
+                  </span>
+                </Tip>
+                <span v-else>geändert {{ ago(pr.updatedAt) }}</span>
                 <Tip v-if="pr.baseDate" :text="baseTip(pr)">
                   <span class="inline-flex items-center gap-1">
                     <GitMerge class="size-3" />Stand von {{ pr.base || "Basis" }}: {{ ago(pr.baseDate) }}
@@ -218,7 +207,12 @@ function baseTip(pr: DashboardPull): string {
                 <span class="rounded border border-border px-1">{{ provider(pr) }}</span>
                 <span>{{ pr.owner }}/{{ pr.repo }} #{{ pr.number }}</span>
                 <span v-if="pr.author">von {{ pr.author }}</span>
-                <span>geändert {{ ago(pr.updatedAt) }}</span>
+                <Tip v-if="isStale(pr)" :text="`Seit über einer Woche keine Aktivität (zuletzt am ${dateTime(pr.updatedAt)}).`">
+                  <span class="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 font-medium text-amber-700 dark:text-amber-400">
+                    <Clock class="size-3" />geändert {{ ago(pr.updatedAt) }}
+                  </span>
+                </Tip>
+                <span v-else>geändert {{ ago(pr.updatedAt) }}</span>
                 <Tip v-if="pr.baseDate" :text="baseTip(pr)">
                   <span class="inline-flex items-center gap-1">
                     <GitMerge class="size-3" />Stand von {{ pr.base || "Basis" }}: {{ ago(pr.baseDate) }}

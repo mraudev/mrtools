@@ -2,6 +2,10 @@
 import { computed, ref, watch, type Component } from "vue";
 import {
   AppWindow,
+  ArrowDown,
+  ArrowUp,
+  CircleCheck,
+  CloudOff,
   Boxes,
   ClipboardCheck,
   CloudDownload,
@@ -28,6 +32,7 @@ import { api } from "@/lib/api";
 import { baseName, launch, openGitTool, openPath, runProjectCommand } from "@/lib/actions";
 import { runGit } from "@/lib/gitConsole";
 import { openInBrowser, pullErrorFor, pullFor } from "@/lib/pulls";
+import { ago, dateTime } from "@/lib/time";
 import { openProjectEditor, store } from "@/lib/store";
 import type { BranchInfo, Project } from "@/lib/types";
 
@@ -51,6 +56,27 @@ const branch = computed(() => info.value?.branch ?? null);
 const createPullUrl = computed(() => info.value?.createPullUrl ?? null);
 const pull = computed(() => pullFor(props.project.path));
 const pullError = computed(() => pullErrorFor(props.project.path));
+
+/** Local HEAD vs. upstream branch, as of the last fetch. */
+const sync = computed(() => {
+  const i = info.value;
+  if (!i?.branch) return null;
+  const fetched = i.fetchedAt ? `Zuletzt geholt ${ago(i.fetchedAt)} (${dateTime(i.fetchedAt)}).` : "Noch nie geholt.";
+  if (!i.upstream) {
+    return { kind: "none" as const, tip: "Kein Remote-Branch verknüpft – noch nicht gepusht?" };
+  }
+  const { name, ahead, behind } = i.upstream;
+  const parts = [
+    ahead ? `${ahead} lokale${ahead === 1 ? "r Commit" : " Commits"} noch nicht gepusht` : "",
+    behind ? `${behind} Commit${behind === 1 ? "" : "s"} auf ${name} noch nicht geholt (Pull)` : "",
+  ].filter(Boolean);
+  return {
+    kind: ahead || behind ? ("diverged" as const) : ("same" as const),
+    ahead,
+    behind,
+    tip: `${parts.length ? parts.join("\n") : `Stimmt mit ${name} überein.`}\nVergleich mit dem zuletzt geholten Stand. ${fetched}`,
+  };
+});
 
 const fork = computed(() => store.config.settings.gitTool === "fork");
 
@@ -175,6 +201,24 @@ const quickActions = [
           {{ branch || "detached HEAD" }}
         </span>
       </Tip>
+      <Tip v-if="sync" :text="sync.tip">
+        <span class="inline-flex h-7 shrink-0 items-center gap-1 px-1 text-xs tabular-nums" tabindex="0">
+          <template v-if="sync.kind === 'same'">
+            <CircleCheck class="size-3.5" :style="{ color: 'var(--status-good)' }" />
+          </template>
+          <template v-else-if="sync.kind === 'none'">
+            <CloudOff class="size-3.5 text-muted-foreground" />
+          </template>
+          <template v-else>
+            <span v-if="sync.ahead" class="inline-flex items-center">
+              <ArrowUp class="size-3.5" :style="{ color: 'var(--status-warning)' }" />{{ sync.ahead }}
+            </span>
+            <span v-if="sync.behind" class="inline-flex items-center">
+              <ArrowDown class="size-3.5" :style="{ color: 'var(--status-warning)' }" />{{ sync.behind }}
+            </span>
+          </template>
+        </span>
+      </Tip>
       <Tip v-if="pull" :text="`Pull Request #${pull.number} im Browser öffnen\n${pull.title}`">
         <button class="btn btn-ghost h-7 px-2 text-xs text-accent-text" @click="pull && openInBrowser(pull.url)">
           <GitPullRequest />#{{ pull.number }}
@@ -197,10 +241,10 @@ const quickActions = [
         </Tip>
       </template>
       <Tip text="Pull: fetch + rebase (autostash)">
-        <button class="btn btn-ghost h-7 px-2 text-xs" @click="runGit(project, 'pull')"><CloudDownload />Pull</button>
+        <button class="icon-btn" aria-label="Pull" @click="runGit(project, 'pull')"><CloudDownload /></button>
       </Tip>
       <Tip text="Push: pull + push">
-        <button class="btn btn-ghost h-7 px-2 text-xs" @click="runGit(project, 'push')"><CloudUpload />Push</button>
+        <button class="icon-btn" aria-label="Push" @click="runGit(project, 'push')"><CloudUpload /></button>
       </Tip>
       <Tip v-if="fork" text="In Fork öffnen">
         <button class="icon-btn" aria-label="In Fork öffnen" @click="openGitTool(project, 'status')"><GitFork /></button>

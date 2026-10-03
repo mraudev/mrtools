@@ -148,6 +148,61 @@ pub struct BranchInfo {
     branch: String,
     /// Link to create a pull request for the branch, if the remote is supported.
     create_pull_url: Option<String>,
+    /// Comparison with the upstream branch as of the last fetch; `None` if
+    /// the branch has no upstream.
+    upstream: Option<Upstream>,
+    /// Last fetch from a remote (modification time of FETCH_HEAD), in ms since 1970.
+    fetched_at: Option<u64>,
+}
+
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Upstream {
+    /// e.g. `origin/main`
+    name: String,
+    /// Local commits not on the upstream yet (to push).
+    ahead: u32,
+    /// Upstream commits not in the local branch yet (to pull).
+    behind: u32,
+}
+
+/// Parses `git rev-list --left-right --count HEAD...@{u}` ("<ahead>\t<behind>").
+fn parse_ahead_behind(output: &str) -> Option<(u32, u32)> {
+    let mut counts = output.split_whitespace().map(str::parse::<u32>);
+    match (counts.next(), counts.next(), counts.next()) {
+        (Some(Ok(ahead)), Some(Ok(behind)), None) => Some((ahead, behind)),
+        _ => None,
+    }
+}
+
+fn upstream(path: &str) -> Option<Upstream> {
+    let name = git_output(
+        path,
+        &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+    )?;
+    let counts = git_output(
+        path,
+        &["rev-list", "--left-right", "--count", "HEAD...@{u}"],
+    )?;
+    let (ahead, behind) = parse_ahead_behind(&counts)?;
+    Some(Upstream {
+        name,
+        ahead,
+        behind,
+    })
+}
+
+fn fetched_at(path: &str) -> Option<u64> {
+    let file = git_output(path, &["rev-parse", "--git-path", "FETCH_HEAD"])?;
+    let modified = std::fs::metadata(std::path::Path::new(path).join(file))
+        .ok()?
+        .modified()
+        .ok()?;
+    let millis = modified
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_millis();
+    u64::try_from(millis).ok()
 }
 
 /// Checked-out branch of `path`; `None` if it is not a git repository.
@@ -170,6 +225,12 @@ pub async fn branch_info(path: String, gitea_host: String) -> Option<BranchInfo>
             compare_url(&remote, &base, &branch)
         })();
         Some(BranchInfo {
+            upstream: if branch.is_empty() {
+                None
+            } else {
+                upstream(&path)
+            },
+            fetched_at: fetched_at(&path),
             branch,
             create_pull_url,
         })
@@ -415,6 +476,63 @@ mod tests {
     fn rejects_local_paths() {
         assert_eq!(parse_remote("C:/repos/app"), None);
         assert_eq!(parse_remote("/srv/git/app.git"), None);
+    }
+
+    #[test]
+    fn parses_ahead_behind_counts() {
+        assert_eq!(parse_ahead_behind("2\t3"), Some((2, 3)));
+        assert_eq!(parse_ahead_behind("0\t0\n"), Some((0, 0)));
+        assert_eq!(parse_ahead_behind("x"), None);
+    }
+
+    /// Real git repositories: a bare remote and two clones.
+    #[test]
+    fn compares_head_with_upstream() {
+        use std::path::Path;
+        use std::process::{Command, Stdio};
+
+        let root = std::env::temp_dir().join(format!("mrstart-upstream-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let git = |dir: &Path, args: &[&str]| {
+            let ok = Command::new("git")
+                .args(["-c", "user.name=Test", "-c", "user.email=test@example.com"])
+                .args(args)
+                .current_dir(dir)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .unwrap()
+                .success();
+            assert!(ok, "git {args:?}");
+        };
+        let state =
+            |dir: &Path| upstream(dir.to_str().unwrap()).map(|u| (u.name, u.ahead, u.behind));
+
+        git(&root, &["init", "--bare", "-b", "main", "remote.git"]);
+        git(&root, &["clone", "remote.git", "a"]);
+        let a = root.join("a");
+        git(&a, &["checkout", "-B", "main"]);
+        git(&a, &["commit", "--allow-empty", "-m", "eins"]);
+        git(&a, &["push", "-u", "origin", "main"]);
+        assert_eq!(state(&a), Some(("origin/main".into(), 0, 0)));
+
+        git(&a, &["commit", "--allow-empty", "-m", "zwei"]);
+        assert_eq!(state(&a), Some(("origin/main".into(), 1, 0)));
+
+        // Someone else pushes; after a fetch both sides have new commits.
+        git(&root, &["clone", "remote.git", "b"]);
+        let b = root.join("b");
+        git(&b, &["commit", "--allow-empty", "-m", "drei"]);
+        git(&b, &["push", "origin", "main"]);
+        git(&a, &["fetch"]);
+        assert_eq!(state(&a), Some(("origin/main".into(), 1, 1)));
+        assert!(fetched_at(a.to_str().unwrap()).is_some());
+
+        git(&a, &["checkout", "-b", "feature"]);
+        assert_eq!(state(&a), None);
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

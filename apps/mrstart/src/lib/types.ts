@@ -122,6 +122,10 @@ export interface BranchInfo {
   branch: string;
   /** Web page to create a pull request for the branch (GitHub/Gitea only). */
   createPullUrl: string | null;
+  /** Comparison with the upstream branch as of the last fetch; null = no upstream. */
+  upstream: { name: string; ahead: number; behind: number } | null;
+  /** Last fetch, ms since 1970. */
+  fetchedAt: number | null;
 }
 
 export interface PullRequest {
