@@ -49,7 +49,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI0MjRGRDUyQjk2M0U2QjEKUldTeDVtTzVVdjBrSkhGUmUwNTBkNHAzZ004VXM2cmw5QlJMZ0JCTGV4RG04QkRjV1Jwc2JTNE0K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNFMDhERTZBQkVGN0NCOTIKUldTU3kvZSthdDRJUGorVjcvT3ZUeDRvc3ptaC82MGhuczRUSkVuV3JzSnpTcEVnMVoyeCtYNDcK",
       "endpoints": [
         "https://github.com/mraudev/mrstart/releases/latest/download/latest.json"
       ],
