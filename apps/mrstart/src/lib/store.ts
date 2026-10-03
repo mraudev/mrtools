@@ -19,7 +19,8 @@ export const store = reactive({
   loaded: false,
   /** Set if the config file exists but could not be read; saving is disabled then. */
   loadError: "",
-  view: "" as View,
+  /** Start view: the pull request dashboard. */
+  view: PULLS as View,
   filter: "",
   watched: [] as Project[],
   /** Incremented to make tiles and lists reload their file system / git state. */
