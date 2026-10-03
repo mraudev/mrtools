@@ -70,6 +70,11 @@ const launchFields = [
   { key: "bashCommand", label: "Git Bash", placeholder: DEFAULT_COMMANDS.bash },
 ] as const;
 
+// Same rule as the backend (pulls.rs): letters, digits, dots and dashes.
+const giteaHostInvalid = computed(
+  () => settings.value.giteaHost !== "" && !/^[a-z0-9.-]+$/i.test(settings.value.giteaHost),
+);
+
 const gitTools: { value: GitTool; label: string }[] = [
   { value: "fork", label: "Fork" },
   { value: "tortoise", label: "TortoiseGit" },
@@ -256,13 +261,18 @@ function configDirectory() {
         <label class="text-sm text-muted-foreground" for="github-token">GitHub-Token</label>
         <SecretField id="github-token" name="github" />
         <label class="text-sm text-muted-foreground" for="gitea-host">Gitea-Host</label>
-        <input
-          id="gitea-host"
-          v-model.trim="settings.giteaHost"
-          class="input font-mono text-[13px]"
-          placeholder="z. B. gitea.example.com"
-          spellcheck="false"
-        />
+        <div>
+          <input
+            id="gitea-host"
+            v-model.trim="settings.giteaHost"
+            class="input font-mono text-[13px]"
+            placeholder="z. B. gitea.example.com"
+            spellcheck="false"
+          />
+          <p v-if="giteaHostInvalid" class="mt-1 text-xs text-red-500">
+            Nur den Hostnamen eintragen, ohne https:// und ohne Pfad.
+          </p>
+        </div>
         <label class="text-sm text-muted-foreground" for="gitea-token">Gitea-Token</label>
         <SecretField id="gitea-token" name="gitea" />
       </div>

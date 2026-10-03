@@ -95,17 +95,26 @@ export type GitEvent =
   | { kind: "command"; text: string }
   | { kind: "output"; text: string };
 
+export interface BranchInfo {
+  /** Empty for a detached HEAD. */
+  branch: string;
+  /** Web page to create a pull request for the branch (GitHub/Gitea only). */
+  createPullUrl: string | null;
+}
+
 export interface PullRequest {
   repo: string;
   branch: string;
   number: number;
   title: string;
   url: string;
+  /** Project folders that have the branch checked out. */
+  paths: string[];
 }
 
 export type SecretName = "github" | "gitea";
 
 export interface PullRequestResult {
   pulls: PullRequest[];
-  errors: string[];
+  errors: { paths: string[]; message: string }[];
 }

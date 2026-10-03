@@ -26,15 +26,6 @@ pub fn git_output(path: &str, args: &[&str]) -> Option<String> {
         .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
-/// Current branch name; empty for a detached HEAD, `None` if not a repository.
-#[tauri::command]
-pub async fn git_branch(path: String) -> Option<String> {
-    tauri::async_runtime::spawn_blocking(move || git_output(&path, &["branch", "--show-current"]))
-        .await
-        .ok()
-        .flatten()
-}
-
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "kind", content = "text")]
 pub enum GitEvent {

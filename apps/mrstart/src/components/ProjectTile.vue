@@ -14,30 +14,42 @@ import {
   FolderOpen,
   GitBranch,
   GitFork,
+  GitPullRequest,
+  GitPullRequestCreate,
   History,
   Pencil,
   SquareTerminal,
   Terminal,
+  TriangleAlert,
 } from "@lucide/vue";
 import Tip from "./ui/Tip.vue";
 import { api } from "@/lib/api";
 import { baseName, launch, openGitTool, openPath, runProjectCommand } from "@/lib/actions";
 import { runGit } from "@/lib/gitConsole";
+import { openInBrowser, pullErrorFor, pullFor } from "@/lib/pulls";
 import { openProjectEditor, store } from "@/lib/store";
-import type { Project } from "@/lib/types";
+import type { BranchInfo, Project } from "@/lib/types";
 
 const props = defineProps<{ project: Project; editable: boolean; showCategory?: boolean }>();
 
-/** `null` = not a git repository, `""` = detached HEAD. */
-const branch = ref<string | null>(null);
+/** `null` = not a git repository. */
+const info = ref<BranchInfo | null>(null);
 
 watch(
-  () => [props.project.path, store.refreshTick],
+  () => [props.project.path, store.refreshTick, store.config.settings.giteaHost],
   async () => {
-    branch.value = await api.gitBranch(props.project.path).catch(() => null);
+    info.value = await api
+      .branchInfo(props.project.path, store.config.settings.giteaHost)
+      .catch(() => null);
   },
   { immediate: true },
 );
+
+/** `null` = not a git repository, `""` = detached HEAD. */
+const branch = computed(() => info.value?.branch ?? null);
+const createPullUrl = computed(() => info.value?.createPullUrl ?? null);
+const pull = computed(() => pullFor(props.project.path));
+const pullError = computed(() => pullErrorFor(props.project.path));
 
 const fork = computed(() => store.config.settings.gitTool === "fork");
 
@@ -154,9 +166,32 @@ const quickActions = [
       class="flex items-center gap-1 border-t border-border bg-foreground/[0.02] py-1.5 pr-1.5 pl-3.5"
     >
       <GitBranch class="size-3.5 shrink-0 text-muted-foreground" />
-      <span class="min-w-0 flex-1 truncate font-mono text-xs" :class="!branch && 'text-muted-foreground italic'">
-        {{ branch || "detached HEAD" }}
-      </span>
+      <Tip :text="branch || 'detached HEAD'">
+        <span class="min-w-0 flex-1 truncate font-mono text-xs" :class="!branch && 'text-muted-foreground italic'">
+          {{ branch || "detached HEAD" }}
+        </span>
+      </Tip>
+      <Tip v-if="pull" :text="`Pull Request #${pull.number} im Browser öffnen\n${pull.title}`">
+        <button class="btn btn-ghost h-7 px-2 text-xs text-accent-text" @click="pull && openInBrowser(pull.url)">
+          <GitPullRequest />#{{ pull.number }}
+        </button>
+      </Tip>
+      <template v-else>
+        <Tip v-if="pullError" :text="`Pull Requests nicht abrufbar:\n${pullError}`">
+          <span class="grid size-7 shrink-0 place-items-center text-amber-500 [&_svg]:size-4">
+            <TriangleAlert />
+          </span>
+        </Tip>
+        <Tip v-if="createPullUrl" text="Pull Request im Browser erstellen">
+          <button
+            class="icon-btn"
+            aria-label="Pull Request erstellen"
+            @click="createPullUrl && openInBrowser(createPullUrl)"
+          >
+            <GitPullRequestCreate />
+          </button>
+        </Tip>
+      </template>
       <Tip text="Pull: fetch + rebase (autostash)">
         <button class="btn btn-ghost h-7 px-2 text-xs" @click="runGit(project, 'pull')"><CloudDownload />Pull</button>
       </Tip>

@@ -1,15 +1,23 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { FolderPlus, Plus, SearchX } from "@lucide/vue";
 import logo from "@/assets/logo.svg";
 import ProjectTile from "./ProjectTile.vue";
-import PullRequestBar from "./PullRequestBar.vue";
+import { loadPulls } from "@/lib/pulls";
 import { activeView, openProjectEditor, store, visibleProjects } from "@/lib/store";
 import { WATCHED } from "@/lib/types";
 
 const filtering = computed(() => store.filter.trim() !== "");
-const paths = computed(() => (filtering.value ? [] : visibleProjects.value.map((p) => p.path)));
+
+// Pull requests of the current tab; not reloaded per keystroke while filtering.
+watch(
+  () => [visibleProjects.value.map((p) => p.path).join("|"), store.refreshTick, store.config.settings.giteaHost],
+  () => {
+    if (!filtering.value) loadPulls(visibleProjects.value.map((p) => p.path));
+  },
+  { immediate: true },
+);
 
 async function addWatchedDirectory() {
   const directory = await openDialog({ directory: true, title: "Ordner überwachen" });
@@ -22,8 +30,6 @@ async function addWatchedDirectory() {
 
 <template>
   <div class="p-5">
-    <PullRequestBar :paths="paths" />
-
     <div
       v-if="visibleProjects.length"
       class="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-4"

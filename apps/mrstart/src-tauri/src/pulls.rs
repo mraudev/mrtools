@@ -8,7 +8,7 @@
 use crate::git::git_output;
 use crate::secrets::{self, Secret};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 /// Host names: letters, digits, dots and dashes only.
@@ -72,6 +72,84 @@ fn parse_remote(url: &str) -> Option<Remote> {
     })
 }
 
+/// The configured Gitea host, if it is set and syntactically valid.
+fn gitea_host(raw: &str) -> Option<String> {
+    let host = raw.trim().to_lowercase();
+    is_host(&host).then_some(host)
+}
+
+/// Only github.com and the configured Gitea host are ever contacted or linked.
+fn is_supported(remote: &Remote, gitea_host: Option<&str>) -> bool {
+    remote.host == "github.com" || Some(remote.host.as_str()) == gitea_host
+}
+
+/// Percent-encodes a branch name for use in a URL path (`/` is kept).
+fn encode_path(value: &str) -> String {
+    let mut encoded = String::new();
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() || b"-._~/".contains(&byte) {
+            encoded.push(byte as char);
+        } else {
+            encoded.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    encoded
+}
+
+/// Web page for opening a pull request from `branch` into `base`
+/// (same URL scheme on GitHub and Gitea).
+fn compare_url(remote: &Remote, base: &str, branch: &str) -> Option<String> {
+    if branch.is_empty() || branch == base {
+        return None;
+    }
+    Some(format!(
+        "https://{}/{}/{}/compare/{}...{}?expand=1",
+        remote.host,
+        remote.owner,
+        remote.repo,
+        encode_path(base),
+        encode_path(branch)
+    ))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchInfo {
+    /// Empty for a detached HEAD.
+    branch: String,
+    /// Link to create a pull request for the branch, if the remote is supported.
+    create_pull_url: Option<String>,
+}
+
+/// Checked-out branch of `path`; `None` if it is not a git repository.
+#[tauri::command]
+pub async fn branch_info(path: String, gitea_host: String) -> Option<BranchInfo> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let branch = git_output(&path, &["branch", "--show-current"])?;
+        let create_pull_url = (|| {
+            let remote = parse_remote(&git_output(&path, &["remote", "get-url", "origin"])?)?;
+            if !is_supported(&remote, self::gitea_host(&gitea_host).as_deref()) {
+                return None;
+            }
+            // Default branch of the remote, as recorded by `git clone`.
+            let base = git_output(
+                &path,
+                &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+            )
+            .and_then(|head| head.strip_prefix("origin/").map(str::to_string))
+            .unwrap_or_else(|| "main".to_string());
+            compare_url(&remote, &base, &branch)
+        })();
+        Some(BranchInfo {
+            branch,
+            create_pull_url,
+        })
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PullRequestQuery {
@@ -87,12 +165,21 @@ pub struct PullRequest {
     number: u64,
     title: String,
     url: String,
+    /// Project folders that have this branch checked out.
+    paths: Vec<String>,
+}
+
+/// A failed lookup for one remote, reported on the tiles of `paths`.
+#[derive(Serialize)]
+pub struct PullRequestError {
+    paths: Vec<String>,
+    message: String,
 }
 
 #[derive(Serialize, Default)]
 pub struct PullRequestResult {
     pulls: Vec<PullRequest>,
-    errors: Vec<String>,
+    errors: Vec<PullRequestError>,
 }
 
 #[derive(Deserialize)]
@@ -154,21 +241,14 @@ async fn fetch_open_pulls(
 #[tauri::command]
 pub async fn pull_requests(query: PullRequestQuery) -> PullRequestResult {
     let mut result = PullRequestResult::default();
-
-    // Only github.com and the configured Gitea host are queried.
-    let mut gitea_host = query.gitea_host.trim().to_lowercase();
-    if !gitea_host.is_empty() && !is_host(&gitea_host) {
-        result
-            .errors
-            .push(format!("Ungültiger Gitea-Host: {gitea_host}"));
-        gitea_host.clear();
-    }
+    // An invalid host is ignored here; the settings page flags it.
+    let gitea_host = gitea_host(&query.gitea_host);
 
     // Resolve the checked-out branch and remote of every folder in parallel
     // and read the tokens (blocking calls, kept off the async runtime).
     let paths = query.paths;
     let (checkouts, github_token, gitea_token) = tauri::async_runtime::spawn_blocking(move || {
-        let checkouts: Vec<(Remote, String)> = std::thread::scope(|scope| {
+        let checkouts: Vec<(Remote, String, String)> = std::thread::scope(|scope| {
             let handles: Vec<_> = paths
                 .iter()
                 .map(|path| {
@@ -177,7 +257,7 @@ pub async fn pull_requests(query: PullRequestQuery) -> PullRequestResult {
                             .filter(|b| !b.is_empty())?;
                         let remote =
                             parse_remote(&git_output(path, &["remote", "get-url", "origin"])?)?;
-                        Some((remote, branch))
+                        Some((remote, branch, path.clone()))
                     })
                 })
                 .collect();
@@ -195,10 +275,16 @@ pub async fn pull_requests(query: PullRequestQuery) -> PullRequestResult {
     .await
     .unwrap_or_default();
 
-    let mut branches_by_remote: BTreeMap<Remote, BTreeSet<String>> = BTreeMap::new();
-    for (remote, branch) in checkouts {
-        if remote.host == "github.com" || (!gitea_host.is_empty() && remote.host == gitea_host) {
-            branches_by_remote.entry(remote).or_default().insert(branch);
+    // remote -> branch -> project folders with that branch checked out
+    let mut branches_by_remote: BTreeMap<Remote, BTreeMap<String, Vec<String>>> = BTreeMap::new();
+    for (remote, branch, path) in checkouts {
+        if is_supported(&remote, gitea_host.as_deref()) {
+            branches_by_remote
+                .entry(remote)
+                .or_default()
+                .entry(branch)
+                .or_default()
+                .push(path);
         }
     }
 
@@ -212,7 +298,13 @@ pub async fn pull_requests(query: PullRequestQuery) -> PullRequestResult {
     {
         Ok(client) => client,
         Err(e) => {
-            result.errors.push(e.to_string());
+            result.errors.push(PullRequestError {
+                paths: branches_by_remote
+                    .into_values()
+                    .flat_map(|b| b.into_values().flatten())
+                    .collect(),
+                message: e.to_string(),
+            });
             return result;
         }
     };
@@ -243,20 +335,23 @@ pub async fn pull_requests(query: PullRequestQuery) -> PullRequestResult {
             Ok(pulls) => result.pulls.extend(
                 pulls
                     .into_iter()
-                    .filter(|pull| branches.contains(&pull.head.branch))
                     .filter(|pull| pull.html_url.starts_with(&link_prefix))
-                    .map(|pull| PullRequest {
-                        repo: remote.repo.clone(),
-                        branch: pull.head.branch,
-                        number: pull.number,
-                        title: pull.title,
-                        url: pull.html_url,
+                    .filter_map(|pull| {
+                        let paths = branches.get(&pull.head.branch)?.clone();
+                        Some(PullRequest {
+                            repo: remote.repo.clone(),
+                            branch: pull.head.branch,
+                            number: pull.number,
+                            title: pull.title,
+                            url: pull.html_url,
+                            paths,
+                        })
                     }),
             ),
-            Err(e) => result.errors.push(format!(
-                "{}/{}/{}: {e}",
-                remote.host, remote.owner, remote.repo
-            )),
+            Err(e) => result.errors.push(PullRequestError {
+                paths: branches.into_values().flatten().collect(),
+                message: format!("{}/{}/{}: {e}", remote.host, remote.owner, remote.repo),
+            }),
         }
     }
     result
@@ -298,6 +393,30 @@ mod tests {
     fn rejects_local_paths() {
         assert_eq!(parse_remote("C:/repos/app"), None);
         assert_eq!(parse_remote("/srv/git/app.git"), None);
+    }
+
+    #[test]
+    fn builds_encoded_compare_urls() {
+        let github = remote("github.com", "mraudev", "mrstart").unwrap();
+        assert_eq!(
+            compare_url(&github, "main", "feature/neu#1").as_deref(),
+            Some("https://github.com/mraudev/mrstart/compare/main...feature/neu%231?expand=1")
+        );
+        assert_eq!(compare_url(&github, "main", "main"), None);
+        assert_eq!(compare_url(&github, "main", ""), None);
+    }
+
+    #[test]
+    fn only_github_and_the_configured_gitea_host_are_supported() {
+        let gitea = remote("gitea.example.com", "team", "app").unwrap();
+        assert!(is_supported(&gitea, Some("gitea.example.com")));
+        assert!(!is_supported(&gitea, None));
+        assert_eq!(
+            gitea_host(" Gitea.Example.com "),
+            Some("gitea.example.com".into())
+        );
+        assert_eq!(gitea_host("evil.com/path?"), None);
+        assert_eq!(gitea_host(""), None);
     }
 
     #[test]

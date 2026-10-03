@@ -1,5 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type {
+  BranchInfo,
   Config,
   GitAction,
   GitEvent,
@@ -25,7 +26,8 @@ export const api = {
   openGitTool: (tool: string, executable: string, action: "status" | "log", path: string) =>
     invoke<void>("open_git_tool", { tool, executable, action, path }),
 
-  gitBranch: (path: string) => invoke<string | null>("git_branch", { path }),
+  branchInfo: (path: string, giteaHost: string) =>
+    invoke<BranchInfo | null>("branch_info", { path, giteaHost }),
   gitRun: (path: string, action: GitAction, onEvent: (event: GitEvent) => void) => {
     const channel = new Channel<GitEvent>();
     channel.onmessage = onEvent;
