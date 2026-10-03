@@ -70,6 +70,17 @@ const reviewTip = computed(
 
 const time = (date: Date) => date.toLocaleTimeString("de", { hour: "2-digit", minute: "2-digit" });
 const provider = (pr: DashboardPull) => (pr.provider === "gitea" ? "Gitea" : "GitHub");
+
+const dateTime = (iso: string) =>
+  new Date(iso).toLocaleString("de", { dateStyle: "medium", timeStyle: "short" });
+
+function baseTip(pr: DashboardPull): string {
+  const base = pr.base || "dem Ziel-Branch";
+  return (
+    `Der Branch enthält ${base} mit Stand vom ${dateTime(pr.baseDate ?? "")}.\n` +
+    `So alt ist die Basis, auf der er aufbaut – nach dem Aktualisieren (Merge/Rebase von ${base}) ist sie wieder aktuell.`
+  );
+}
 </script>
 
 <template>
@@ -124,7 +135,12 @@ const provider = (pr: DashboardPull) => (pr.provider === "gitea" ? "Gitea" : "Gi
                 <span class="rounded border border-border px-1">{{ provider(pr) }}</span>
                 <span>{{ pr.owner }}/{{ pr.repo }} #{{ pr.number }}</span>
                 <span v-if="pr.head" class="font-mono">{{ pr.head }} → {{ pr.base }}</span>
-                <span>{{ ago(pr.updatedAt) }}</span>
+                <span>geändert {{ ago(pr.updatedAt) }}</span>
+                <Tip v-if="pr.baseDate" :text="baseTip(pr)">
+                  <span class="inline-flex items-center gap-1">
+                    <GitMerge class="size-3" />Stand von {{ pr.base || "Basis" }}: {{ ago(pr.baseDate) }}
+                  </span>
+                </Tip>
                 <span v-if="pr.reviewDecision && reviewBadge[pr.reviewDecision]" :class="reviewBadge[pr.reviewDecision].class">
                   {{ reviewBadge[pr.reviewDecision].label }}
                 </span>
@@ -202,7 +218,12 @@ const provider = (pr: DashboardPull) => (pr.provider === "gitea" ? "Gitea" : "Gi
                 <span class="rounded border border-border px-1">{{ provider(pr) }}</span>
                 <span>{{ pr.owner }}/{{ pr.repo }} #{{ pr.number }}</span>
                 <span v-if="pr.author">von {{ pr.author }}</span>
-                <span>{{ ago(pr.updatedAt) }}</span>
+                <span>geändert {{ ago(pr.updatedAt) }}</span>
+                <Tip v-if="pr.baseDate" :text="baseTip(pr)">
+                  <span class="inline-flex items-center gap-1">
+                    <GitMerge class="size-3" />Stand von {{ pr.base || "Basis" }}: {{ ago(pr.baseDate) }}
+                  </span>
+                </Tip>
               </p>
             </div>
             <Tip :text="reviewTip">

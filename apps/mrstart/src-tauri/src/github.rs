@@ -15,7 +15,7 @@ query {
   }
 }
 fragment pr on PullRequest {
-  id number title url isDraft updatedAt createdAt headRefName baseRefName headRefOid
+  id number title url isDraft updatedAt createdAt headRefName baseRefName headRefOid baseRefOid
   mergeStateStatus viewerCanUpdateBranch reviewDecision
   author { login }
   repository { name owner { login } }
@@ -48,6 +48,7 @@ struct Pull {
     head_ref_name: String,
     base_ref_name: String,
     head_ref_oid: String,
+    base_ref_oid: String,
     merge_state_status: String,
     viewer_can_update_branch: bool,
     review_decision: Option<String>,
@@ -104,6 +105,8 @@ fn to_dashboard(search: Search) -> Vec<DashboardPull> {
             head: pr.head_ref_name,
             base: pr.base_ref_name,
             head_sha: pr.head_ref_oid,
+            base_sha: pr.base_ref_oid,
+            base_date: None,
             // mergeStateStatus only reports BEHIND when branch protection
             // requires up-to-date branches; viewerCanUpdateBranch is reliable.
             status: if pr.viewer_can_update_branch {
@@ -146,12 +149,69 @@ async fn graphql(client: &reqwest::Client, token: &str, body: Value) -> Result<V
     Ok(body["data"].take())
 }
 
+/// Commit date of the merge base of `base_sha` and `head_sha`, i.e. the last
+/// state of the base branch the pull request branch contains.
+async fn merge_base_date(
+    client: &reqwest::Client,
+    token: &str,
+    (owner, repo, base_sha, head_sha): (String, String, String, String),
+) -> Option<String> {
+    // owner/repo/head were validated in to_dashboard.
+    if !is_sha(&base_sha) {
+        return None;
+    }
+    let url = format!(
+        "https://api.github.com/repos/{owner}/{repo}/compare/{base_sha}...{head_sha}?per_page=1"
+    );
+    let response = client
+        .get(url)
+        .bearer_auth(token)
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await
+        .ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    let body: Value = response.json().await.ok()?;
+    body["merge_base_commit"]["commit"]["committer"]["date"]
+        .as_str()
+        .map(str::to_string)
+}
+
+/// Fills `base_date` for all pull requests (one compare call each, in parallel).
+async fn with_base_dates(
+    client: &reqwest::Client,
+    token: &str,
+    mut pulls: Vec<DashboardPull>,
+) -> Vec<DashboardPull> {
+    let tasks: Vec<_> = pulls
+        .iter()
+        .map(|pr| {
+            let (client, token) = (client.clone(), token.to_string());
+            let refs = (
+                pr.owner.clone(),
+                pr.repo.clone(),
+                pr.base_sha.clone(),
+                pr.head_sha.clone(),
+            );
+            tauri::async_runtime::spawn(async move { merge_base_date(&client, &token, refs).await })
+        })
+        .collect();
+    for (pr, task) in pulls.iter_mut().zip(tasks) {
+        pr.base_date = task.await.ok().flatten();
+    }
+    pulls
+}
+
 pub async fn fetch(client: &reqwest::Client, token: &str) -> Result<Lists, String> {
     let mut data = graphql(client, token, json!({ "query": QUERY })).await?;
     let parse = |value: Value| serde_json::from_value::<Search>(value).map_err(|e| e.to_string());
+    let authored = to_dashboard(parse(data["authored"].take())?);
+    let reviews = to_dashboard(parse(data["reviews"].take())?);
     Ok((
-        to_dashboard(parse(data["authored"].take())?),
-        to_dashboard(parse(data["reviews"].take())?),
+        with_base_dates(client, token, authored).await,
+        with_base_dates(client, token, reviews).await,
     ))
 }
 
@@ -188,6 +248,7 @@ mod tests {
             head_ref_name: "feature".into(),
             base_ref_name: "main".into(),
             head_ref_oid: sha.into(),
+            base_ref_oid: "b".repeat(40),
             merge_state_status: "BEHIND".into(),
             viewer_can_update_branch: true,
             review_decision: None,

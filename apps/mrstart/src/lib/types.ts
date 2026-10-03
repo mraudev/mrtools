@@ -152,6 +152,9 @@ export interface DashboardPull {
   head: string;
   base: string;
   headSha: string;
+  baseSha: string;
+  /** Commit date of the newest base-branch state the PR branch contains. */
+  baseDate: string | null;
   status: PullStatus;
   canUpdate: boolean;
   reviewDecision: string | null;

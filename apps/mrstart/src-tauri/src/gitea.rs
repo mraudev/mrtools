@@ -99,8 +99,76 @@ async fn search(
     get(client, token, url).await
 }
 
+#[derive(Deserialize)]
+struct CommitInfo {
+    commit: CommitMeta,
+}
+
+#[derive(Deserialize)]
+struct CommitMeta {
+    committer: CommitUser,
+}
+
+#[derive(Deserialize)]
+struct CommitUser {
+    date: String,
+}
+
+type Details = (Option<Pull>, Option<String>);
+
+/// Starts loading the merge information and the merge base date of each pull
+/// request (the search result contains neither).
+fn spawn_details(
+    client: &reqwest::Client,
+    host: &str,
+    token: &str,
+    issues: &[Issue],
+) -> Vec<tauri::async_runtime::JoinHandle<Details>> {
+    issues
+        .iter()
+        .map(|issue| {
+            let repo = issue
+                .repository
+                .as_ref()
+                .filter(|r| is_name(&r.owner) && is_name(&r.name))
+                .map(|r| (r.owner.clone(), r.name.clone()));
+            let (client, host, token, number) = (
+                client.clone(),
+                host.to_string(),
+                token.to_string(),
+                issue.number,
+            );
+            tauri::async_runtime::spawn(async move {
+                let Some((owner, name)) = repo else {
+                    return (None, None);
+                };
+                let api = format!("https://{host}/api/v1/repos/{owner}/{name}");
+                let Ok(pull) = get::<Pull>(&client, &token, format!("{api}/pulls/{number}")).await
+                else {
+                    return (None, None);
+                };
+                let base_date = match pull.merge_base.as_deref().filter(|sha| is_sha(sha)) {
+                    Some(sha) => get::<CommitInfo>(
+                        &client,
+                        &token,
+                        format!(
+                            "{api}/git/commits/{sha}?stat=false&verification=false&files=false"
+                        ),
+                    )
+                    .await
+                    .ok()
+                    .map(|c| c.commit.committer.date),
+                    None => None,
+                };
+                (Some(pull), base_date)
+            })
+        })
+        .collect()
+}
+
 /// Builds a dashboard entry from a search hit; `None` if its data is unsafe.
-fn entry(host: &str, issue: Issue, pull: Option<&Pull>) -> Option<DashboardPull> {
+fn entry(host: &str, issue: Issue, (pull, base_date): Details) -> Option<DashboardPull> {
+    let pull = pull.as_ref();
     let repository = issue.repository?;
     let link_ok = issue.html_url.starts_with(&format!("https://{host}/"));
     if !link_ok || !is_name(&repository.owner) || !is_name(&repository.name) {
@@ -124,6 +192,8 @@ fn entry(host: &str, issue: Issue, pull: Option<&Pull>) -> Option<DashboardPull>
             .map(|p| p.head.sha.clone())
             .filter(|sha| is_sha(sha))
             .unwrap_or_default(),
+        base_sha: pull.map(|p| p.base.sha.clone()).unwrap_or_default(),
+        base_date,
         status,
         can_update: status == Status::Behind,
         review_decision: None,
@@ -135,38 +205,18 @@ pub async fn fetch(client: &reqwest::Client, host: &str, token: &str) -> Result<
     let authored = search(client, host, token, "created").await?;
     let reviews = search(client, host, token, "review_requested").await?;
 
-    // The search result has no merge information; load each own PR in parallel.
-    let details: Vec<_> = authored
-        .iter()
-        .map(|issue| {
-            let repo = issue
-                .repository
-                .as_ref()
-                .filter(|r| is_name(&r.owner) && is_name(&r.name))
-                .map(|r| (r.owner.clone(), r.name.clone()));
-            let (client, host, token, number) = (
-                client.clone(),
-                host.to_string(),
-                token.to_string(),
-                issue.number,
-            );
-            tauri::async_runtime::spawn(async move {
-                let (owner, name) = repo?;
-                let url = format!("https://{host}/api/v1/repos/{owner}/{name}/pulls/{number}");
-                get::<Pull>(&client, &token, url).await.ok()
-            })
-        })
-        .collect();
+    // Both lists load their details in parallel.
+    let authored_details = spawn_details(client, host, token, &authored);
+    let review_details = spawn_details(client, host, token, &reviews);
 
     let mut authored_entries = Vec::new();
-    for (issue, detail) in authored.into_iter().zip(details) {
-        let pull = detail.await.ok().flatten();
-        authored_entries.extend(entry(host, issue, pull.as_ref()));
+    for (issue, task) in authored.into_iter().zip(authored_details) {
+        authored_entries.extend(entry(host, issue, task.await.unwrap_or((None, None))));
     }
-    let review_entries = reviews
-        .into_iter()
-        .filter_map(|issue| entry(host, issue, None))
-        .collect();
+    let mut review_entries = Vec::new();
+    for (issue, task) in reviews.into_iter().zip(review_details) {
+        review_entries.extend(entry(host, issue, task.await.unwrap_or((None, None))));
+    }
     Ok((authored_entries, review_entries))
 }
 
@@ -247,19 +297,19 @@ mod tests {
         assert!(entry(
             host,
             issue("https://gitea.example.com/team/app/pulls/1", "team"),
-            None
+            (None, None)
         )
         .is_some());
         assert!(entry(
             host,
             issue("https://evil.example/team/app/pulls/1", "team"),
-            None
+            (None, None)
         )
         .is_none());
         assert!(entry(
             host,
             issue("https://gitea.example.com/x/app/pulls/1", "a/b"),
-            None
+            (None, None)
         )
         .is_none());
     }

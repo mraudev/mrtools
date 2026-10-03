@@ -43,6 +43,11 @@ pub struct DashboardPull {
     pub head: String,
     pub base: String,
     pub head_sha: String,
+    /// Current tip of the base branch.
+    pub base_sha: String,
+    /// Commit date of the merge base: the newest state of the base branch the
+    /// pull request branch contains (refreshed by merging/rebasing the base in).
+    pub base_date: Option<String>,
     pub status: Status,
     /// The branch is behind its base and can be updated.
     pub can_update: bool,
