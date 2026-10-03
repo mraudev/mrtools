@@ -71,24 +71,6 @@ function selectTab(id: string) {
     </div>
 
     <nav class="no-scrollbar flex min-w-0 items-center gap-1 overflow-x-auto">
-      <button
-        v-for="tab in tabs"
-        :key="tab.id"
-        class="inline-flex h-7 shrink-0 items-center gap-2 rounded-md px-2.5 text-[13px] transition-colors [&_svg]:size-3.5"
-        :class="
-          activeView === tab.id && !store.filter
-            ? 'bg-accent/15 font-medium text-accent-text'
-            : 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground'
-        "
-        @click="selectTab(tab.id)"
-      >
-        <Eye v-if="tab.id === WATCHED" />
-        <Briefcase v-else />
-        <span class="capitalize">{{ tab.label }}</span>
-        <span class="rounded bg-foreground/8 px-1 text-[11px] leading-4 tabular-nums">{{ tab.count }}</span>
-      </button>
-
-      <div v-if="tabs.length" class="mx-1 h-4 w-px shrink-0 bg-border" />
       <Tip
         :text="dashboard.reviewRequests.length ? `${dashboard.reviewRequests.length} Review(s) angefordert` : undefined"
         side="bottom"
@@ -112,6 +94,24 @@ function selectTab(id: string) {
           </span>
         </button>
       </Tip>
+      <div v-if="tabs.length" class="mx-1 h-4 w-px shrink-0 bg-border" />
+
+      <button
+        v-for="tab in tabs"
+        :key="tab.id"
+        class="inline-flex h-7 shrink-0 items-center gap-2 rounded-md px-2.5 text-[13px] transition-colors [&_svg]:size-3.5"
+        :class="
+          activeView === tab.id && !store.filter
+            ? 'bg-accent/15 font-medium text-accent-text'
+            : 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground'
+        "
+        @click="selectTab(tab.id)"
+      >
+        <Eye v-if="tab.id === WATCHED" />
+        <Briefcase v-else />
+        <span class="capitalize">{{ tab.label }}</span>
+        <span class="rounded bg-foreground/8 px-1 text-[11px] leading-4 tabular-nums">{{ tab.count }}</span>
+      </button>
     </nav>
 
     <div class="min-w-6 flex-1" data-tauri-drag-region />
