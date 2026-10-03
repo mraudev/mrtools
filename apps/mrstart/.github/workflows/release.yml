@@ -1,0 +1,65 @@
+name: Release
+
+# Ein Tag `vX.Y.Z` baut den Windows-Installer, signiert die Update-Pakete und
+# veröffentlicht beides samt `latest.json` als GitHub-Release. Installierte
+# mrstart-Versionen finden das Update über
+# https://github.com/mraudev/mrstart/releases/latest/download/latest.json
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Tag gegen package.json prüfen
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME passt nicht zur Version $version in package.json"
+            exit 1
+          fi
+
+      - name: Release-Notizen aus den Commits
+        id: notes
+        shell: bash
+        run: |
+          previous=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          {
+            echo 'body<<EOF'
+            git log --no-merges --pretty='- %s' "${previous:+$previous..}$GITHUB_REF_NAME"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: mrstart ${{ github.ref_name }}
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: false
+          prerelease: false
