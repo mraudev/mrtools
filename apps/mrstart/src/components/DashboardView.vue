@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { computed, onMounted } from "vue";
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -16,10 +16,11 @@ import {
   LoaderCircle,
   MessageSquareMore,
   RefreshCw,
+  Sparkles,
   TriangleAlert,
 } from "@lucide/vue";
 import Tip from "./ui/Tip.vue";
-import { dashboard, loadDashboard, pullKey, updateBranch } from "@/lib/dashboard";
+import { dashboard, loadDashboard, pullKey, reviewWithClaude, updateBranch } from "@/lib/dashboard";
 import { openInBrowser } from "@/lib/pulls";
 import { store } from "@/lib/store";
 import { SETTINGS, type DashboardPull, type PullStatus } from "@/lib/types";
@@ -59,6 +60,12 @@ function ago(iso: string): string {
   }
   return "gerade eben";
 }
+
+const reviewTip = computed(
+  () =>
+    `Öffnet ${store.config.settings.reviewTarget === "desktop" ? "Claude Desktop" : "Claude Code im Terminal"} ` +
+    "mit einem vorbereiteten Review-Auftrag (Titel, Beschreibung und Diff).\nDer Auftrag wird erst gesendet, wenn du ihn bestätigst.",
+);
 
 const time = (date: Date) => date.toLocaleTimeString("de", { hour: "2-digit", minute: "2-digit" });
 const provider = (pr: DashboardPull) => (pr.provider === "gitea" ? "Gitea" : "GitHub");
@@ -183,16 +190,29 @@ const provider = (pr: DashboardPull) => (pr.provider === "gitea" ? "Gitea" : "Gi
           </span>
         </h2>
         <ul v-if="dashboard.reviewRequests.length" class="divide-y divide-border">
-          <li v-for="pr in dashboard.reviewRequests" :key="pullKey(pr)" class="px-4 py-2.5">
-            <button class="block max-w-full truncate text-left font-medium hover:text-accent-text hover:underline" @click="openInBrowser(pr.url)">
-              {{ pr.title }}
-            </button>
-            <p class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-              <span class="rounded border border-border px-1">{{ provider(pr) }}</span>
-              <span>{{ pr.owner }}/{{ pr.repo }} #{{ pr.number }}</span>
-              <span v-if="pr.author">von {{ pr.author }}</span>
-              <span>{{ ago(pr.updatedAt) }}</span>
-            </p>
+          <li v-for="pr in dashboard.reviewRequests" :key="pullKey(pr)" class="flex items-center gap-3 px-4 py-2.5">
+            <div class="min-w-0 flex-1">
+              <button class="block max-w-full truncate text-left font-medium hover:text-accent-text hover:underline" @click="openInBrowser(pr.url)">
+                {{ pr.title }}
+              </button>
+              <p class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                <span class="rounded border border-border px-1">{{ provider(pr) }}</span>
+                <span>{{ pr.owner }}/{{ pr.repo }} #{{ pr.number }}</span>
+                <span v-if="pr.author">von {{ pr.author }}</span>
+                <span>{{ ago(pr.updatedAt) }}</span>
+              </p>
+            </div>
+            <Tip :text="reviewTip">
+              <button
+                class="btn btn-outline h-7 px-2.5 text-xs"
+                :disabled="dashboard.reviewing !== ''"
+                @click="reviewWithClaude(pr)"
+              >
+                <LoaderCircle v-if="dashboard.reviewing === pullKey(pr)" class="animate-spin" />
+                <Sparkles v-else class="text-accent-text" />
+                Mit Claude reviewen
+              </button>
+            </Tip>
           </li>
         </ul>
         <p v-else class="px-4 py-6 text-center text-muted-foreground">

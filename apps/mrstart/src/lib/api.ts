@@ -7,6 +7,7 @@ import type {
   GitAction,
   GitEvent,
   PullRequestResult,
+  ReviewTarget,
   SecretName,
   WatchedEntry,
 } from "./types";
@@ -51,6 +52,19 @@ export const api = {
         headSha: pull.headSha,
         rebase,
         giteaHost,
+      },
+    }),
+
+  reviewWithClaude: (pull: DashboardPull, giteaHost: string, projectPaths: string[], target: ReviewTarget) =>
+    invoke<void>("review_with_claude", {
+      request: {
+        provider: pull.provider,
+        owner: pull.owner,
+        repo: pull.repo,
+        number: pull.number,
+        giteaHost,
+        projectPaths,
+        target,
       },
     }),
 

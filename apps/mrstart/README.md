@@ -14,6 +14,8 @@ Desktop-Launcher für Entwicklungsprojekte – der Nachfolger von radstart.
   Browser erstellen (GitHub und ein Gitea-Server)
 - **Pull-Request-Dashboard** (Gitea und GitHub): eigene offene PRs mit Status (veraltet, Konflikte,
   aktuell …), Branch per Merge oder Rebase aktualisieren, Liste der angeforderten Reviews
+- **Review mit Claude**: bereitet für einen angeforderten Review einen Auftrag samt Diff vor und öffnet
+  ihn in Claude Desktop oder Claude Code im Terminal (einstellbar); gesendet wird erst nach Bestätigung
 - **Filter** über alle Projekte (<kbd>Strg</kbd>+<kbd>F</kbd>), <kbd>F5</kbd> aktualisiert
 - Dunkles/helles Design, Akzentfarbe wählbar
 - **Automatische Updates** über GitHub Releases (beim Start und alle 6 Stunden)

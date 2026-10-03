@@ -34,7 +34,11 @@ export interface Settings {
   giteaHost: string;
   theme: Theme;
   accent: string;
+  /** Where "Review with Claude" opens: the Claude desktop app or Claude Code in a terminal. */
+  reviewTarget: ReviewTarget;
 }
+
+export type ReviewTarget = "desktop" | "terminal";
 
 export interface Config {
   projects: Project[];
@@ -62,6 +66,7 @@ export function defaultSettings(): Settings {
     giteaHost: "",
     theme: "dark",
     accent: "amber",
+    reviewTarget: "desktop",
   };
 }
 

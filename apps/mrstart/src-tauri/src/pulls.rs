@@ -95,17 +95,34 @@ fn is_supported(remote: &Remote, gitea_host: Option<&str>) -> bool {
     remote.host == "github.com" || Some(remote.host.as_str()) == gitea_host
 }
 
-/// Percent-encodes a branch name for use in a URL path (`/` is kept).
-fn encode_path(value: &str) -> String {
+/// Whether the `origin` remote of `path` is `host/owner/repo`.
+pub(crate) fn origin_matches(path: &str, host: &str, owner: &str, repo: &str) -> bool {
+    git_output(path, &["remote", "get-url", "origin"])
+        .and_then(|url| parse_remote(&url))
+        .is_some_and(|remote| {
+            remote.host == host
+                && remote.owner.eq_ignore_ascii_case(owner)
+                && remote.repo.eq_ignore_ascii_case(repo)
+        })
+}
+
+/// Percent-encodes everything except unreserved characters and `keep`
+/// (like JavaScript's `encodeURIComponent` when `keep` is empty).
+pub(crate) fn percent_encode(value: &str, keep: &[u8]) -> String {
     let mut encoded = String::new();
     for byte in value.bytes() {
-        if byte.is_ascii_alphanumeric() || b"-._~/".contains(&byte) {
+        if byte.is_ascii_alphanumeric() || b"-._~".contains(&byte) || keep.contains(&byte) {
             encoded.push(byte as char);
         } else {
             encoded.push_str(&format!("%{byte:02X}"));
         }
     }
     encoded
+}
+
+/// Percent-encodes a branch name for use in a URL path (`/` is kept).
+fn encode_path(value: &str) -> String {
+    percent_encode(value, b"/")
 }
 
 /// Web page for opening a pull request from `branch` into `base`

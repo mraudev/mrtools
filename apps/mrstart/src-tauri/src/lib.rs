@@ -6,6 +6,7 @@ mod github;
 mod launch;
 mod projects;
 mod pulls;
+mod review;
 mod secrets;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -32,6 +33,7 @@ pub fn run() {
             pulls::pull_requests,
             dashboard::dashboard,
             dashboard::update_pull_branch,
+            review::review_with_claude,
             secrets::secret_status,
             secrets::set_secret,
             secrets::delete_secret,

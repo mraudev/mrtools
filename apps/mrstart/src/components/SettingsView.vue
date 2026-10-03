@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
+  AppWindow,
   Briefcase,
   Eye,
   FileJson,
@@ -30,7 +31,7 @@ import { api } from "@/lib/api";
 import { openPath } from "@/lib/actions";
 import { openProjectEditor, store } from "@/lib/store";
 import { ACCENTS } from "@/lib/theme";
-import { DEFAULT_COMMANDS, type GitTool, type Theme } from "@/lib/types";
+import { DEFAULT_COMMANDS, type GitTool, type ReviewTarget, type Theme } from "@/lib/types";
 import { checkForUpdate, updater } from "@/lib/updater";
 
 const settings = computed(() => store.config.settings);
@@ -88,6 +89,11 @@ async function browseGitTool() {
   });
   if (typeof file === "string") settings.value[gitToolPathKey.value] = file;
 }
+
+const reviewTargets: { value: ReviewTarget; label: string; icon: typeof Sun }[] = [
+  { value: "desktop", label: "Claude Desktop", icon: AppWindow },
+  { value: "terminal", label: "Claude Code im Terminal", icon: SquareTerminal },
+];
 
 const themes: { value: Theme; label: string; icon: typeof Sun }[] = [
   { value: "dark", label: "Dunkel", icon: Moon },
@@ -288,6 +294,22 @@ function configDirectory() {
           &amp; schreiben. Nur so viele Rechte vergeben wie nötig.
         </p>
       </div>
+    </Section>
+
+    <Section
+      :icon="Sparkles"
+      title="Review mit Claude"
+      description="Wohin der Knopf „Mit Claude reviewen“ im Pull-Request-Dashboard den Review-Auftrag schickt."
+    >
+      <Segmented v-model="settings.reviewTarget" :options="reviewTargets" />
+      <p class="mt-2 text-xs text-muted-foreground">
+        Der Auftrag wird nur vorausgefüllt und erst gesendet, wenn du ihn bestätigst. Liegt das Repository
+        lokal als Projekt oder in einem überwachten Ordner, arbeitet Claude dort und kennt den übrigen Code.
+        <template v-if="settings.reviewTarget === 'terminal'">
+          Für das Terminal muss Claude Code installiert sein und einmal interaktiv benutzt worden sein, damit
+          der Link-Handler registriert ist.
+        </template>
+      </p>
     </Section>
 
     <Section :icon="Palette" title="Darstellung">

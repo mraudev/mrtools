@@ -60,8 +60,9 @@ pub struct Dashboard {
     errors: Vec<String>,
 }
 
+/// A full commit ID: SHA-1 (40) or SHA-256 (64) hex digits.
 pub fn is_sha(s: &str) -> bool {
-    s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit())
+    matches!(s.len(), 40 | 64) && s.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 #[tauri::command]
