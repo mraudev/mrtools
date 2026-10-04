@@ -313,12 +313,14 @@ function configDirectory() {
     >
       <Segmented v-model="settings.reviewTarget" :options="reviewTargets" />
       <p class="mt-2 text-xs text-muted-foreground">
-        Der Auftrag wird nur vorausgefüllt und erst gesendet, wenn du ihn bestätigst. Liegt das Repository
-        lokal als Projekt oder in einem überwachten Ordner, arbeitet Claude dort und kennt den übrigen Code.
-        <template v-if="settings.reviewTarget === 'terminal'">
-          Für das Terminal muss Claude Code installiert sein und einmal interaktiv benutzt worden sein, damit
-          der Link-Handler registriert ist.
+        <template v-if="settings.reviewTarget === 'desktop'">
+          Der Auftrag wird nur vorausgefüllt und erst gesendet, wenn du ihn bestätigst.
         </template>
+        <template v-else>
+          Claude Code startet im Auto-Modus und schickt den Auftrag sofort ab. Claude Code muss installiert sein.
+        </template>
+        Liegt das Repository lokal als Projekt oder in einem überwachten Ordner, arbeitet Claude dort und
+        kennt den übrigen Code.
       </p>
     </Section>
 

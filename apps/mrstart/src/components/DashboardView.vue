@@ -51,8 +51,9 @@ const isStale = (pr: DashboardPull) => olderThan(pr.updatedAt, WEEK_MS);
 
 const reviewTip = computed(
   () =>
-    `Öffnet ${store.config.settings.reviewTarget === "desktop" ? "Claude Desktop" : "Claude Code im Terminal"} ` +
-    "mit einem vorbereiteten Review-Auftrag (Titel, Beschreibung und Diff).\nDer Auftrag wird erst gesendet, wenn du ihn bestätigst.",
+    store.config.settings.reviewTarget === "desktop"
+      ? "Öffnet Claude Desktop mit einem vorbereiteten Review-Auftrag (Titel, Beschreibung und Diff).\nDer Auftrag wird erst gesendet, wenn du ihn bestätigst."
+      : "Startet Claude Code im Terminal im Auto-Modus und schickt den Review-Auftrag (Titel, Beschreibung und Diff) sofort ab.",
 );
 
 const time = (date: Date) => date.toLocaleTimeString("de", { hour: "2-digit", minute: "2-digit" });

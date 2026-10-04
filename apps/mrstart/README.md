@@ -17,7 +17,8 @@ Desktop-Launcher für Entwicklungsprojekte – der Nachfolger von radstart.
   aktuell …), Branch per Merge oder Rebase aktualisieren, Liste der angeforderten Reviews; dazu
   Kennzahlen und Diagramme (Status, Alter, Verteilung auf Repositories) mit Tabellenansicht
 - **Review mit Claude**: bereitet für einen angeforderten Review einen Auftrag samt Diff vor und öffnet
-  ihn in Claude Desktop oder Claude Code im Terminal (einstellbar); gesendet wird erst nach Bestätigung
+  ihn in Claude Desktop (vorausgefüllt, Senden nach Bestätigung) oder startet Claude Code im Terminal im
+  Auto-Modus (einstellbar); bisherige Reviews und Kommentare des PRs werden berücksichtigt
 - **Filter** über alle Projekte (<kbd>Strg</kbd>+<kbd>F</kbd>), <kbd>F5</kbd> aktualisiert
 - Dunkles/helles Design, Akzentfarbe wählbar
 - **Automatische Updates** über GitHub Releases (beim Start und alle 6 Stunden)

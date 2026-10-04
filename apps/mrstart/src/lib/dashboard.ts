@@ -51,11 +51,11 @@ export async function reviewWithClaude(pr: DashboardPull) {
   dashboard.reviewing = pullKey(pr);
   try {
     await api.reviewWithClaude(pr, giteaHost, projectPaths, reviewTarget);
-    toast(
-      "success",
-      reviewTarget === "desktop" ? "Review in Claude Desktop vorbereitet" : "Review in Claude Code vorbereitet",
-      "Auftrag prüfen und selbst absenden – er wird nicht automatisch gesendet.",
-    );
+    if (reviewTarget === "desktop") {
+      toast("success", "Review in Claude Desktop vorbereitet", "Auftrag prüfen und selbst absenden.");
+    } else {
+      toast("success", "Review in Claude Code gestartet", "Läuft im Auto-Modus im neuen Terminalfenster.");
+    }
   } catch (e) {
     toastError("Review konnte nicht vorbereitet werden", e);
   } finally {
