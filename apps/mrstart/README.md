@@ -58,6 +58,29 @@ npm run build
 cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
+## Gitea-Token einrichten
+
+Für das Pull-Request-Dashboard mit Gitea braucht mrstart den Gitea-Host und ein Zugriffstoken.
+
+1. In Gitea: Profilbild → **Einstellungen** → **Anwendungen** → *Zugriffstokens verwalten*.
+2. Token-Name `mrstart`, **Repository- und Organisationszugriff: Alle**.
+3. Berechtigungen: **issue: Lesen**, **repository: Lesen und Schreiben** (Schreiben nur für
+   „Aktualisieren“ – sonst reicht Lesen), alles andere **Kein Zugriff**. Ältere Gitea-Versionen:
+   `read:issue` und `write:repository` bzw. `read:repository`.
+4. **Token generieren** und sofort kopieren – Gitea zeigt es nur einmal an.
+5. In mrstart unter **Einstellungen → Pull Requests** den **Gitea-Host** (nur Hostname, ohne
+   `https://`) und das **Gitea-Token** eintragen und speichern.
+
+| Meldung | Lösung |
+|---|---|
+| „Token ungültig oder abgelaufen“ | Neues Token erzeugen |
+| „keine Berechtigung (Token-Rechte prüfen)“ | Bereiche **issue** und **repository** prüfen |
+| Verbindungsfehler | Gitea nur im Firmennetz erreichbar → VPN verbinden |
+| Dashboard leer | Gitea-Host muss exakt dem Host der Git-Remotes entsprechen |
+
+Widerrufen: in Gitea unter **Einstellungen → Anwendungen** das Token löschen und es in mrstart
+mit dem Papierkorb entfernen.
+
 ## Sicherheit
 
 - **Tokens** (GitHub/Gitea) liegen verschlüsselt in der Windows-Anmeldeinformationsverwaltung
