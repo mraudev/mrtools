@@ -16,7 +16,7 @@ query {
 }
 fragment pr on PullRequest {
   id number title url isDraft updatedAt createdAt headRefName baseRefName headRefOid baseRefOid
-  mergeStateStatus viewerCanUpdateBranch reviewDecision
+  mergeable mergeStateStatus viewerCanUpdateBranch reviewDecision
   author { login }
   repository { name owner { login } }
 }
@@ -49,6 +49,7 @@ struct Pull {
     base_ref_name: String,
     head_ref_oid: String,
     base_ref_oid: String,
+    mergeable: String,
     merge_state_status: String,
     viewer_can_update_branch: bool,
     review_decision: Option<String>,
@@ -107,14 +108,18 @@ fn to_dashboard(search: Search) -> Vec<DashboardPull> {
             head_sha: pr.head_ref_oid,
             base_sha: pr.base_ref_oid,
             base_date: None,
+            // Conflicts take precedence (updating would hit them, too).
             // mergeStateStatus only reports BEHIND when branch protection
             // requires up-to-date branches; viewerCanUpdateBranch is reliable.
-            status: if pr.viewer_can_update_branch {
+            status: if pr.mergeable == "CONFLICTING" || pr.merge_state_status == "DIRTY" {
+                Status::Conflict
+            } else if pr.viewer_can_update_branch {
                 Status::Behind
             } else {
                 status(&pr.merge_state_status)
             },
             can_update: pr.viewer_can_update_branch,
+            has_conflicts: pr.mergeable == "CONFLICTING" || pr.merge_state_status == "DIRTY",
             review_decision: pr.review_decision,
             author: pr.author.map(|a| a.login).unwrap_or_default(),
         })
@@ -249,6 +254,7 @@ mod tests {
             base_ref_name: "main".into(),
             head_ref_oid: sha.into(),
             base_ref_oid: "b".repeat(40),
+            mergeable: "MERGEABLE".into(),
             merge_state_status: "BEHIND".into(),
             viewer_can_update_branch: true,
             review_decision: None,

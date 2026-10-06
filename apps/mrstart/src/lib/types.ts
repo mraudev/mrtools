@@ -161,6 +161,8 @@ export interface DashboardPull {
   baseDate: string | null;
   status: PullStatus;
   canUpdate: boolean;
+  /** Head and base conflict – updating would not work without resolving them. */
+  hasConflicts: boolean;
   reviewDecision: string | null;
   author: string;
 }

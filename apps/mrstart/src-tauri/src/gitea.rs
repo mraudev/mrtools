@@ -43,18 +43,23 @@ struct Branch {
     sha: String,
 }
 
-fn status(pull: &Pull) -> Status {
-    // Behind: the merge base is no longer the tip of the base branch, i.e.
-    // the base has commits the pull request branch does not contain yet.
-    let behind = !pull.base.sha.is_empty()
+/// Behind: the merge base is no longer the tip of the base branch, i.e. the
+/// base has commits the pull request branch does not contain yet.
+fn is_behind(pull: &Pull) -> bool {
+    !pull.base.sha.is_empty()
         && pull
             .merge_base
             .as_deref()
-            .is_some_and(|base| !base.is_empty() && base != pull.base.sha);
-    if behind {
-        Status::Behind
-    } else if !pull.mergeable {
+            .is_some_and(|base| !base.is_empty() && base != pull.base.sha)
+}
+
+/// Conflicts take precedence: updating the branch would merge the same two
+/// states and run into the same conflicts.
+fn status(pull: &Pull) -> Status {
+    if !pull.mergeable {
         Status::Conflict
+    } else if is_behind(pull) {
+        Status::Behind
     } else if pull.draft == Some(true) {
         Status::Draft
     } else {
@@ -195,7 +200,8 @@ fn entry(host: &str, issue: Issue, (pull, base_date): Details) -> Option<Dashboa
         base_sha: pull.map(|p| p.base.sha.clone()).unwrap_or_default(),
         base_date,
         status,
-        can_update: status == Status::Behind,
+        can_update: pull.is_some_and(is_behind),
+        has_conflicts: status == Status::Conflict,
         review_decision: None,
         author: issue.user.map(|u| u.login).unwrap_or_default(),
     })
@@ -275,6 +281,9 @@ mod tests {
     #[test]
     fn detects_behind_and_conflicts() {
         assert_eq!(status(&pull("aaa", "bbb", true)), Status::Behind);
+        // Behind and conflicting: updating would not work without resolving.
+        assert_eq!(status(&pull("aaa", "bbb", false)), Status::Conflict);
+        assert!(is_behind(&pull("aaa", "bbb", false)));
         assert_eq!(status(&pull("bbb", "bbb", true)), Status::Clean);
         assert_eq!(status(&pull("bbb", "bbb", false)), Status::Conflict);
     }

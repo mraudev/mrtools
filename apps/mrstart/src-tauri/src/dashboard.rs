@@ -51,6 +51,9 @@ pub struct DashboardPull {
     pub status: Status,
     /// The branch is behind its base and can be updated.
     pub can_update: bool,
+    /// Head and base conflict – updating the branch would not work without
+    /// resolving them, so the dashboard offers no update button then.
+    pub has_conflicts: bool,
     /// GitHub only: APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED.
     pub review_decision: Option<String>,
     pub author: String,

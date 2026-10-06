@@ -9,6 +9,7 @@ import {
 } from "reka-ui";
 import {
   ChevronDown,
+  CircleX,
   Clock,
   GitCommitVertical,
   GitMerge,
@@ -143,7 +144,18 @@ function baseTip(pr: DashboardPull): string {
               </span>
             </Tip>
 
-            <DropdownMenuRoot v-if="pr.canUpdate">
+            <Tip
+              v-if="pr.canUpdate && pr.hasConflicts"
+              :text="`${pr.head} liegt hinter ${pr.base}, lässt sich aber nicht automatisch aktualisieren: Beim Zusammenführen würde es Konflikte geben.\nDie Konflikte lokal lösen (z. B. Pull in der Kachel) und dann pushen.`"
+            >
+              <span
+                class="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-red-500/40 px-2.5 text-xs font-medium text-red-600 dark:text-red-400"
+                tabindex="0"
+              >
+                <CircleX class="size-3.5" />Aktualisieren nur mit Konfliktlösung
+              </span>
+            </Tip>
+            <DropdownMenuRoot v-else-if="pr.canUpdate">
               <DropdownMenuTrigger as-child>
                 <button class="btn btn-primary h-7 px-2.5 text-xs" :disabled="dashboard.updating !== ''">
                   <LoaderCircle v-if="dashboard.updating === pullKey(pr)" class="animate-spin" />
