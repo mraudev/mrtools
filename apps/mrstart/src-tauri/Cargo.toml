@@ -1,6 +1,6 @@
 [package]
 name = "mrstart"
-version = "1.6.0"
+version = "1.7.0"
 description = "Desktop-Launcher für Entwicklungsprojekte"
 authors = ["Michael Rau <dev@mraudev.com>"]
 repository = "https://github.com/mraudev/mrstart"
