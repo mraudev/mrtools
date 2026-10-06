@@ -11,6 +11,8 @@
     "core:window:allow-close",
     "core:window:allow-start-dragging",
     "dialog:allow-open",
+    "dialog:allow-save",
+    "notification:default",
     "opener:default",
     "process:allow-restart",
     "updater:default"

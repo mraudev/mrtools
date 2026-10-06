@@ -1,4 +1,5 @@
 import { reactive } from "vue";
+import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { api } from "./api";
 import { store } from "./store";
 import { toast, toastError } from "./toast";
@@ -22,6 +23,30 @@ export const pullKey = (pr: DashboardPull) => `${pr.provider}:${pr.owner}/${pr.r
 
 let request = 0;
 
+/** Review requests seen so far; `null` until the first successful load, so
+ *  existing requests do not trigger notifications at startup. */
+let knownReviews: Set<string> | null = null;
+
+async function notifyNewReviews(reviews: DashboardPull[]) {
+  const keys = new Set(reviews.map(pullKey));
+  const fresh = knownReviews ? reviews.filter((r) => !knownReviews!.has(pullKey(r))) : [];
+  knownReviews = keys;
+  if (!fresh.length || !store.config.settings.notifyReviews) return;
+  try {
+    let granted = await isPermissionGranted();
+    if (!granted) granted = (await requestPermission()) === "granted";
+    if (!granted) return;
+    for (const pr of fresh.slice(0, 3)) {
+      sendNotification({
+        title: "Review angefordert",
+        body: `${pr.owner}/${pr.repo} #${pr.number}: ${pr.title}${pr.author ? ` (von ${pr.author})` : ""}`,
+      });
+    }
+  } catch {
+    // Notifications are a convenience; the dashboard still shows the request.
+  }
+}
+
 export async function loadDashboard() {
   const current = ++request;
   const tokens = await api.secretStatus().catch(() => ({ github: false, gitea: false }));
@@ -37,6 +62,7 @@ export async function loadDashboard() {
     const result = await api.dashboard(giteaHost);
     if (current !== request) return;
     Object.assign(dashboard, { ...result, loadedAt: new Date() });
+    notifyNewReviews(result.reviewRequests);
   } catch (e) {
     if (current === request) dashboard.errors = [String(e)];
   } finally {

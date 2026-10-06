@@ -1,6 +1,6 @@
 //! GitHub part of the dashboard (GraphQL API).
 
-use crate::dashboard::{is_sha, DashboardPull, Lists, Status};
+use crate::dashboard::{ci_state, is_sha, DashboardPull, Lists, Status};
 use crate::pulls::is_name;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -19,6 +19,7 @@ fragment pr on PullRequest {
   mergeable mergeStateStatus viewerCanUpdateBranch reviewDecision
   author { login }
   repository { name owner { login } }
+  commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
 }
 "#;
 
@@ -55,6 +56,28 @@ struct Pull {
     review_decision: Option<String>,
     author: Option<Login>,
     repository: Repository,
+    commits: Commits,
+}
+
+#[derive(Deserialize)]
+struct Commits {
+    nodes: Vec<CommitNode>,
+}
+
+#[derive(Deserialize)]
+struct CommitNode {
+    commit: Commit,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Commit {
+    status_check_rollup: Option<Rollup>,
+}
+
+#[derive(Deserialize)]
+struct Rollup {
+    state: String,
 }
 
 #[derive(Deserialize)]
@@ -99,7 +122,7 @@ fn to_dashboard(search: Search) -> Vec<DashboardPull> {
             repo: pr.repository.name,
             number: pr.number,
             title: pr.title,
-            url: pr.url,
+            url: pr.url.clone(),
             is_draft: pr.is_draft,
             updated_at: pr.updated_at,
             created_at: pr.created_at,
@@ -120,6 +143,13 @@ fn to_dashboard(search: Search) -> Vec<DashboardPull> {
             },
             can_update: pr.viewer_can_update_branch,
             has_conflicts: pr.mergeable == "CONFLICTING" || pr.merge_state_status == "DIRTY",
+            ci: pr
+                .commits
+                .nodes
+                .first()
+                .and_then(|n| n.commit.status_check_rollup.as_ref())
+                .and_then(|r| ci_state(&r.state)),
+            ci_url: Some(format!("{}/checks", pr.url)),
             review_decision: pr.review_decision,
             author: pr.author.map(|a| a.login).unwrap_or_default(),
         })
@@ -265,6 +295,7 @@ mod tests {
                     login: owner.into(),
                 },
             },
+            commits: Commits { nodes: vec![] },
         })
     }
 

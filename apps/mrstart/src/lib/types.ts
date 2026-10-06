@@ -42,6 +42,17 @@ export interface Settings {
   accent: string;
   /** Where "Review with Claude" opens: the Claude desktop app or Claude Code in a terminal. */
   reviewTarget: ReviewTarget;
+  /** Background `git fetch` of all projects every n minutes; 0 = off (default). */
+  autoFetchMinutes: number;
+  /** Favorite projects (configured or watched), shown first in their tab. */
+  pinnedPaths: string[];
+  /** Tab order from drag & drop; tabs not listed follow alphabetically. */
+  tabOrder: string[];
+  compactTiles: boolean;
+  /** Windows notification when a new review is requested. */
+  notifyReviews: boolean;
+  /** Version whose release notes were last shown. */
+  lastSeenVersion: string;
 }
 
 export type ReviewTarget = "desktop" | "terminal";
@@ -73,6 +84,12 @@ export function defaultSettings(): Settings {
     theme: "dark",
     accent: "amber",
     reviewTarget: "desktop",
+    autoFetchMinutes: 0,
+    pinnedPaths: [],
+    tabOrder: [],
+    compactTiles: false,
+    notifyReviews: true,
+    lastSeenVersion: "",
   };
 }
 
@@ -126,6 +143,8 @@ export interface BranchInfo {
   upstream: { name: string; ahead: number; behind: number } | null;
   /** Last fetch, ms since 1970. */
   fetchedAt: number | null;
+  /** Changed or untracked files in the working tree. */
+  changes: number;
 }
 
 export interface PullRequest {
@@ -163,6 +182,9 @@ export interface DashboardPull {
   canUpdate: boolean;
   /** Head and base conflict – updating would not work without resolving them. */
   hasConflicts: boolean;
+  /** Combined CI state of the head commit; null = no checks. */
+  ci: "success" | "failure" | "pending" | null;
+  ciUrl: string | null;
   reviewDecision: string | null;
   author: string;
 }

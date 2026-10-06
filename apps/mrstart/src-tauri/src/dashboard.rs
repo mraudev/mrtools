@@ -54,6 +54,11 @@ pub struct DashboardPull {
     /// Head and base conflict – updating the branch would not work without
     /// resolving them, so the dashboard offers no update button then.
     pub has_conflicts: bool,
+    /// Combined CI state of the head commit: `success`, `failure` or
+    /// `pending`; `None` if no checks ran.
+    pub ci: Option<&'static str>,
+    /// Page with the check results (http/https only).
+    pub ci_url: Option<String>,
     /// GitHub only: APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED.
     pub review_decision: Option<String>,
     pub author: String,
@@ -67,6 +72,21 @@ pub struct Dashboard {
     authored: Vec<DashboardPull>,
     review_requests: Vec<DashboardPull>,
     errors: Vec<String>,
+}
+
+/// Maps the CI states of GitHub and Gitea to `success`/`failure`/`pending`.
+pub fn ci_state(state: &str) -> Option<&'static str> {
+    match state.to_ascii_lowercase().as_str() {
+        "success" => Some("success"),
+        "failure" | "error" | "warning" => Some("failure"),
+        "pending" | "expected" => Some("pending"),
+        _ => None,
+    }
+}
+
+/// Only web links are passed on to be opened in the browser.
+pub fn web_link(url: &str) -> Option<String> {
+    (url.starts_with("https://") || url.starts_with("http://")).then(|| url.to_string())
 }
 
 /// A full commit ID: SHA-1 (40) or SHA-256 (64) hex digits.

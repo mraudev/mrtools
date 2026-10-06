@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, reactive } from "vue";
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -9,6 +9,7 @@ import {
 } from "reka-ui";
 import {
   ChevronDown,
+  CircleCheck,
   CircleX,
   Clock,
   GitCommitVertical,
@@ -49,6 +50,35 @@ const reviewBadge: Record<string, { label: string; class: string }> = {
 
 /** No activity on the pull request for more than a week. */
 const isStale = (pr: DashboardPull) => olderThan(pr.updatedAt, WEEK_MS);
+
+// Filters scope the charts and both lists alike.
+const filter = reactive({ repo: "", provider: "", onlyBehind: false, onlyStale: false });
+const repoOf = (pr: DashboardPull) => `${pr.owner}/${pr.repo}`;
+const allPulls = computed(() => [...dashboard.authored, ...dashboard.reviewRequests]);
+const repoOptions = computed(() => [...new Set(allPulls.value.map(repoOf))].sort((a, b) => a.localeCompare(b)));
+const providers = computed(() => [...new Set(allPulls.value.map((p) => p.provider))]);
+const filterActive = computed(() => !!(filter.repo || filter.provider || filter.onlyBehind || filter.onlyStale));
+
+function matches(pr: DashboardPull) {
+  return (
+    (!filter.repo || repoOf(pr) === filter.repo) &&
+    (!filter.provider || pr.provider === filter.provider) &&
+    (!filter.onlyBehind || pr.canUpdate || pr.status === "behind") &&
+    (!filter.onlyStale || isStale(pr))
+  );
+}
+const authored = computed(() => dashboard.authored.filter(matches));
+const reviews = computed(() => dashboard.reviewRequests.filter(matches));
+
+function resetFilter() {
+  Object.assign(filter, { repo: "", provider: "", onlyBehind: false, onlyStale: false });
+}
+
+const ciBadge = {
+  success: { label: "CI grün", icon: CircleCheck, color: "var(--status-good)" },
+  failure: { label: "CI rot", icon: CircleX, color: "var(--status-critical)" },
+  pending: { label: "CI läuft", icon: Clock, color: "var(--status-warning)" },
+} as const;
 
 const reviewTip = computed(
   () =>
@@ -103,16 +133,51 @@ function baseTip(pr: DashboardPull): string {
         <span class="select-text">{{ error }}</span>
       </div>
 
-      <DashboardCharts v-if="dashboard.authored.length || dashboard.reviewRequests.length" />
+      <!-- One filter row above everything it scopes -->
+      <div v-if="allPulls.length" class="flex flex-wrap items-center gap-2 text-[13px]">
+        <select v-model="filter.repo" class="input h-8 w-auto max-w-64 pr-7" aria-label="Repository">
+          <option value="">Alle Repositories</option>
+          <option v-for="r in repoOptions" :key="r" :value="r">{{ r }}</option>
+        </select>
+        <select v-if="providers.length > 1" v-model="filter.provider" class="input h-8 w-auto" aria-label="Anbieter">
+          <option value="">Gitea und GitHub</option>
+          <option value="gitea">Gitea</option>
+          <option value="github">GitHub</option>
+        </select>
+        <button
+          class="btn h-8"
+          :class="filter.onlyBehind ? 'btn-primary' : 'btn-outline'"
+          :aria-pressed="filter.onlyBehind"
+          @click="filter.onlyBehind = !filter.onlyBehind"
+        >
+          Nur veraltete
+        </button>
+        <button
+          class="btn h-8"
+          :class="filter.onlyStale ? 'btn-primary' : 'btn-outline'"
+          :aria-pressed="filter.onlyStale"
+          @click="filter.onlyStale = !filter.onlyStale"
+        >
+          Nur inaktive (&gt; 1 Woche)
+        </button>
+        <template v-if="filterActive">
+          <span class="text-xs text-muted-foreground">
+            {{ authored.length + reviews.length }} von {{ allPulls.length }}
+          </span>
+          <button class="btn btn-ghost h-8" @click="resetFilter">Zurücksetzen</button>
+        </template>
+      </div>
+
+      <DashboardCharts v-if="authored.length || reviews.length" :authored="authored" :reviews="reviews" />
 
       <section class="rounded-xl border border-border bg-card">
         <h2 class="flex items-center gap-2 border-b border-border px-4 py-3 font-semibold">
           <GitPullRequest class="size-4 text-accent-text" />
           Meine offenen Pull Requests
-          <span class="rounded bg-foreground/8 px-1.5 text-xs font-normal tabular-nums">{{ dashboard.authored.length }}</span>
+          <span class="rounded bg-foreground/8 px-1.5 text-xs font-normal tabular-nums">{{ authored.length }}</span>
         </h2>
-        <ul v-if="dashboard.authored.length" class="divide-y divide-border">
-          <li v-for="pr in dashboard.authored" :key="pullKey(pr)" class="flex items-center gap-3 px-4 py-2.5">
+        <ul v-if="authored.length" class="divide-y divide-border">
+          <li v-for="pr in authored" :key="pullKey(pr)" class="flex items-center gap-3 px-4 py-2.5">
             <div class="min-w-0 flex-1">
               <button class="block max-w-full truncate text-left font-medium hover:text-accent-text hover:underline" @click="openInBrowser(pr.url)">
                 {{ pr.title }}
@@ -121,6 +186,16 @@ function baseTip(pr: DashboardPull): string {
                 <span class="rounded border border-border px-1">{{ provider(pr) }}</span>
                 <span>{{ pr.owner }}/{{ pr.repo }} #{{ pr.number }}</span>
                 <span v-if="pr.head" class="font-mono">{{ pr.head }} → {{ pr.base }}</span>
+                <Tip v-if="pr.ci" :text="pr.ciUrl ? `${ciBadge[pr.ci].label} – Ergebnisse im Browser öffnen` : ciBadge[pr.ci].label">
+                  <button
+                    class="inline-flex items-center gap-1 hover:text-foreground"
+                    :disabled="!pr.ciUrl"
+                    @click="pr.ciUrl && openInBrowser(pr.ciUrl)"
+                  >
+                    <component :is="ciBadge[pr.ci].icon" class="size-3" :style="{ color: ciBadge[pr.ci].color }" />
+                    {{ ciBadge[pr.ci].label }}
+                  </button>
+                </Tip>
                 <Tip v-if="isStale(pr)" :text="`Seit über einer Woche keine Aktivität (zuletzt am ${dateTime(pr.updatedAt)}).`">
                   <span class="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 font-medium text-amber-700 dark:text-amber-400">
                     <Clock class="size-3" />geändert {{ ago(pr.updatedAt) }}
@@ -205,13 +280,13 @@ function baseTip(pr: DashboardPull): string {
           Angeforderte Reviews
           <span
             class="rounded px-1.5 text-xs font-normal tabular-nums"
-            :class="dashboard.reviewRequests.length ? 'bg-accent font-semibold text-accent-foreground' : 'bg-foreground/8'"
+            :class="reviews.length ? 'bg-accent font-semibold text-accent-foreground' : 'bg-foreground/8'"
           >
-            {{ dashboard.reviewRequests.length }}
+            {{ reviews.length }}
           </span>
         </h2>
-        <ul v-if="dashboard.reviewRequests.length" class="divide-y divide-border">
-          <li v-for="pr in dashboard.reviewRequests" :key="pullKey(pr)" class="flex items-center gap-3 px-4 py-2.5">
+        <ul v-if="reviews.length" class="divide-y divide-border">
+          <li v-for="pr in reviews" :key="pullKey(pr)" class="flex items-center gap-3 px-4 py-2.5">
             <div class="min-w-0 flex-1">
               <button class="block max-w-full truncate text-left font-medium hover:text-accent-text hover:underline" @click="openInBrowser(pr.url)">
                 {{ pr.title }}

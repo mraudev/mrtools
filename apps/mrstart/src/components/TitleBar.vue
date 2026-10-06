@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   Briefcase,
@@ -17,7 +17,17 @@ import {
 import logo from "@/assets/logo.svg";
 import Tip from "./ui/Tip.vue";
 import { dashboard } from "@/lib/dashboard";
-import { activeView, openProjectEditor, refresh, store, tabs } from "@/lib/store";
+import { launch } from "@/lib/actions";
+import {
+  activeView,
+  moveTab,
+  openProjectEditor,
+  refresh,
+  renameTab,
+  store,
+  tabs,
+  visibleProjects,
+} from "@/lib/store";
 import { PULLS, SETTINGS } from "@/lib/types";
 
 const appWindow = getCurrentWindow();
@@ -58,6 +68,49 @@ function selectTab(id: string) {
   store.view = id;
   store.filter = "";
 }
+
+// Filter: arrow keys move the selection, Enter opens it in the editor.
+watch(() => store.filter, () => (store.selected = 0));
+function onFilterKeydown(event: KeyboardEvent) {
+  const count = visibleProjects.value.length;
+  if (!count) return;
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    const step = event.key === "ArrowDown" ? 1 : -1;
+    store.selected = (store.selected + step + count) % count;
+  } else if (event.key === "Enter") {
+    event.preventDefault();
+    const project = visibleProjects.value[Math.min(store.selected, count - 1)];
+    launch(event.shiftKey ? "terminal" : "editor", project);
+  }
+}
+
+// Tabs: drag & drop to reorder, double-click to rename.
+const dragged = ref("");
+const dropTarget = ref("");
+const editing = ref("");
+const editValue = ref("");
+const renameInput = ref<HTMLInputElement[]>([]);
+
+function onDragStart(event: DragEvent, label: string) {
+  dragged.value = label;
+  event.dataTransfer?.setData("text/plain", label);
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+}
+function onDrop(label: string) {
+  if (dragged.value) moveTab(dragged.value, label);
+  dragged.value = dropTarget.value = "";
+}
+async function startRename(label: string) {
+  editing.value = label;
+  editValue.value = label;
+  await nextTick();
+  renameInput.value[0]?.select();
+}
+function finishRename(save: boolean) {
+  if (save && editing.value) renameTab(editing.value, editValue.value);
+  editing.value = "";
+}
 </script>
 
 <template>
@@ -96,22 +149,44 @@ function selectTab(id: string) {
       </Tip>
       <div v-if="tabs.length" class="mx-1 h-4 w-px shrink-0 bg-border" />
 
-      <button
-        v-for="tab in tabs"
-        :key="tab.id"
-        class="inline-flex h-7 shrink-0 items-center gap-2 rounded-md px-2.5 text-[13px] transition-colors [&_svg]:size-3.5"
-        :class="
-          activeView === tab.id && !store.filter
-            ? 'bg-accent/15 font-medium text-accent-text'
-            : 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground'
-        "
-        @click="selectTab(tab.id)"
-      >
-        <Eye v-if="tab.watched" />
-        <Briefcase v-else />
-        <span class="capitalize">{{ tab.label }}</span>
-        <span class="rounded bg-foreground/8 px-1 text-[11px] leading-4 tabular-nums">{{ tab.count }}</span>
-      </button>
+      <template v-for="tab in tabs" :key="tab.id">
+        <input
+          v-if="editing === tab.label"
+          ref="renameInput"
+          v-model="editValue"
+          class="input h-7 w-36 shrink-0 text-[13px]"
+          aria-label="Tab umbenennen"
+          spellcheck="false"
+          @keydown.enter.prevent="finishRename(true)"
+          @keydown.escape.prevent="finishRename(false)"
+          @blur="finishRename(true)"
+        />
+        <button
+          v-else
+          draggable="true"
+          :title="'Ziehen zum Verschieben, Doppelklick zum Umbenennen'"
+          class="inline-flex h-7 shrink-0 items-center gap-2 rounded-md border-l-2 px-2.5 text-[13px] transition-colors [&_svg]:size-3.5"
+          :class="[
+            activeView === tab.id && !store.filter
+              ? 'bg-accent/15 font-medium text-accent-text'
+              : 'text-muted-foreground hover:bg-foreground/5 hover:text-foreground',
+            dropTarget === tab.label && dragged !== tab.label ? 'border-accent' : 'border-transparent',
+            dragged === tab.label && 'opacity-50',
+          ]"
+          @click="selectTab(tab.id)"
+          @dblclick="startRename(tab.label)"
+          @dragstart="onDragStart($event, tab.label)"
+          @dragover.prevent="dropTarget = tab.label"
+          @dragleave="dropTarget === tab.label && (dropTarget = '')"
+          @drop.prevent="onDrop(tab.label)"
+          @dragend="dragged = dropTarget = ''"
+        >
+          <Eye v-if="tab.watched" />
+          <Briefcase v-else />
+          <span class="capitalize">{{ tab.label }}</span>
+          <span class="rounded bg-foreground/8 px-1 text-[11px] leading-4 tabular-nums">{{ tab.count }}</span>
+        </button>
+      </template>
     </nav>
 
     <div class="min-w-6 flex-1" data-tauri-drag-region />
@@ -124,7 +199,9 @@ function selectTab(id: string) {
           v-model="store.filter"
           class="input h-7 w-48 pl-7 text-[13px]"
           placeholder="Projekte filtern"
+          title="↑/↓ auswählen · Enter: im Editor öffnen · Umschalt+Enter: Terminal"
           spellcheck="false"
+          @keydown="onFilterKeydown"
         />
       </div>
       <Tip text="Aktualisieren (F5)" side="bottom">

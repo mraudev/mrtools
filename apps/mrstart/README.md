@@ -19,7 +19,16 @@ Desktop-Launcher für Entwicklungsprojekte – der Nachfolger von radstart.
 - **Review mit Claude**: bereitet für einen angeforderten Review einen Auftrag samt Diff vor und öffnet
   ihn in Claude Desktop (vorausgefüllt, Senden nach Bestätigung) oder startet Claude Code im Terminal im
   Auto-Modus (einstellbar); bisherige Reviews und Kommentare des PRs werden berücksichtigt
-- **Filter** über alle Projekte (<kbd>Strg</kbd>+<kbd>F</kbd>), <kbd>F5</kbd> aktualisiert
+- **Filter** über alle Projekte (<kbd>Strg</kbd>+<kbd>F</kbd>, ↑/↓ wählen, <kbd>Enter</kbd> öffnet im Editor,
+  <kbd>Umschalt</kbd>+<kbd>Enter</kbd> im Terminal), <kbd>F5</kbd> aktualisiert
+- **Favoriten** (Stern) oben im Tab, **Tabs** per Drag & Drop sortieren und per Doppelklick umbenennen,
+  kompakte Kachelansicht
+- In der Kachel: Abgleich mit dem Remote (↑/↓), Zahl der ungesicherten Änderungen, Hinweis bei
+  fehlendem Ordner oder Git-Problemen (Klick kopiert die Lösung)
+- Optionales **automatisches Fetch** im Hintergrund (standardmäßig aus), **Benachrichtigung** bei neuen
+  Review-Anfragen, **CI-Status** je Pull Request, **Filter** im Dashboard
+- Nach einem Update zeigt mrstart die **Änderungen der neuen Version**; Konfiguration **exportieren und
+  importieren** (ohne Tokens); nur eine laufende Instanz
 - Dunkles/helles Design, Akzentfarbe wählbar
 - **Automatische Updates** über GitHub Releases (beim Start und alle 6 Stunden)
 
@@ -55,7 +64,7 @@ npm run tauri dev
 Tests und Prüfungen wie in der CI:
 
 ```bash
-npm run build
+npm run build && npm test
 cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 

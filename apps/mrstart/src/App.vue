@@ -11,18 +11,21 @@ import SettingsView from "./components/SettingsView.vue";
 import StatusBar from "./components/StatusBar.vue";
 import TitleBar from "./components/TitleBar.vue";
 import UpdateDialog from "./components/UpdateDialog.vue";
+import ChangelogDialog from "./components/ChangelogDialog.vue";
 import Toaster from "./components/ui/Toaster.vue";
 import { loadDashboard } from "./lib/dashboard";
 import { activeView, initStore, store } from "./lib/store";
 import { toast } from "./lib/toast";
 import { PULLS, SETTINGS } from "./lib/types";
 import { startUpdateChecks } from "./lib/updater";
+import { startBackgroundWork } from "./lib/background";
 
 onMounted(async () => {
   await initStore();
   // Keeps the review counter in the tab bar current (startup and F5).
   loadDashboard();
   watch(() => store.refreshTick, loadDashboard);
+  startBackgroundWork();
   listen<{ command: string; code: number | null }>("launch-failed", ({ payload }) => {
     toast("error", `Befehl beendet mit Exit-Code ${payload.code ?? "?"}`, payload.command);
   });
@@ -60,6 +63,7 @@ onMounted(async () => {
     <ProjectDialog />
     <GitConsoleDialog />
     <UpdateDialog />
+    <ChangelogDialog v-if="store.loaded && !store.loadError" />
     <Toaster />
   </TooltipProvider>
 </template>

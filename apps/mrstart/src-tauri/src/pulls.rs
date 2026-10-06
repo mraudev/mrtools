@@ -5,7 +5,7 @@
 //! HTTPS to api.github.com or the configured Gitea host – never to a host
 //! derived from repository data alone, and never across redirects.
 
-use crate::git::{current_branch, git_output, repository_problem};
+use crate::git::{changed_files, current_branch, git_output, repository_problem};
 use crate::secrets::{self, Secret};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -153,6 +153,8 @@ pub struct BranchInfo {
     upstream: Option<Upstream>,
     /// Last fetch from a remote (modification time of FETCH_HEAD), in ms since 1970.
     fetched_at: Option<u64>,
+    /// Changed or untracked files in the working tree.
+    changes: u32,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
@@ -234,6 +236,7 @@ pub async fn branch_info(path: String, gitea_host: String) -> Result<Option<Bran
                 upstream(&path)
             },
             fetched_at: fetched_at(&path),
+            changes: changed_files(&path),
             branch,
             create_pull_url,
         }))

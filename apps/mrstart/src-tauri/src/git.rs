@@ -77,11 +77,58 @@ pub fn current_branch(path: &str) -> Option<String> {
     Some(git_output(path, &["symbolic-ref", "--short", "-q", "HEAD"]).unwrap_or_default())
 }
 
+/// Number of changed or untracked files (`git status --porcelain`).
+pub fn changed_files(path: &str) -> u32 {
+    git_output(path, &["status", "--porcelain", "--untracked-files=normal"])
+        .map(|out| out.lines().filter(|l| !l.trim().is_empty()).count() as u32)
+        .unwrap_or(0)
+}
+
+/// Background fetch of all given repositories (in parallel). Credential
+/// prompts are suppressed; returns one message per failed repository.
+#[tauri::command]
+pub async fn git_fetch_all(paths: Vec<String>) -> Vec<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        std::thread::scope(|scope| {
+            let handles: Vec<_> = paths
+                .iter()
+                .map(|path| {
+                    scope.spawn(move || {
+                        // Folders without a repository are skipped silently.
+                        current_branch(path)?;
+                        let out = git(path)
+                            .env("GCM_INTERACTIVE", "never")
+                            .args(["fetch", "--quiet"])
+                            .output();
+                        match out {
+                            Ok(out) if out.status.success() => None,
+                            Ok(out) => Some(format!(
+                                "{path}: {}",
+                                String::from_utf8_lossy(&out.stderr)
+                                    .lines()
+                                    .next()
+                                    .unwrap_or("Fehler")
+                            )),
+                            Err(e) => Some(format!("{path}: {e}")),
+                        }
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .filter_map(|h| h.join().ok().flatten())
+                .collect()
+        })
+    })
+    .await
+    .unwrap_or_default()
+}
+
 /// Classifies why `path` cannot be used as a repository: `Ok(())` if it is
 /// simply no repository, otherwise a message for the user.
 pub fn repository_problem(path: &str) -> Result<(), String> {
     if !Path::new(path).is_dir() {
-        return Ok(());
+        return Err("Der Projektordner existiert nicht (mehr).".into());
     }
     match git_try(path, &["rev-parse", "--is-inside-work-tree"]) {
         Ok(_) => Ok(()),
@@ -218,6 +265,7 @@ mod tests {
         // Plain folder: no repository and no problem to report.
         assert_eq!(current_branch(dir), None);
         assert!(repository_problem(dir).is_ok());
+        assert!(repository_problem(&format!("{dir}/fehlt")).is_err());
 
         let run = |args: &[&str]| {
             git(dir)

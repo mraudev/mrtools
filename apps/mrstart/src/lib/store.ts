@@ -2,6 +2,7 @@ import { computed, reactive, watch } from "vue";
 import { api } from "./api";
 import { applyTheme, onSystemThemeChange } from "./theme";
 import { toastError } from "./toast";
+import { normalizeConfig, orderTabs, watchedCategory } from "./config";
 import {
   defaultSettings,
   emptyProject,
@@ -11,9 +12,7 @@ import {
   WATCHED_ID_PREFIX,
   type Config,
   type Project,
-  type Settings,
   type View,
-  type WatchedFolder,
 } from "./types";
 
 export const store = reactive({
@@ -24,6 +23,8 @@ export const store = reactive({
   /** Start view: the pull request dashboard. */
   view: PULLS as View,
   filter: "",
+  /** Keyboard selection among the visible tiles (arrow keys in the filter). */
+  selected: 0,
   watched: [] as Project[],
   /** Incremented to make tiles and lists reload their file system / git state. */
   refreshTick: 0,
@@ -32,58 +33,7 @@ export const store = reactive({
 // ---------------------------------------------------------------------------
 // Loading & saving
 
-function normalizeProject(raw: any): Project {
-  const commands = Array.isArray(raw?.commands) ? raw.commands : [];
-  return {
-    id: String(raw?.id ?? crypto.randomUUID()),
-    name: String(raw?.name ?? ""),
-    category: String(raw?.category ?? ""),
-    path: String(raw?.path ?? ""),
-    version: raw?.version == null ? "" : String(raw.version),
-    apps: Array.isArray(raw?.apps) ? raw.apps.map(String) : [],
-    commands: commands.map((c: any) => ({
-      caption: String(c?.caption ?? ""),
-      command: String(c?.command ?? ""),
-    })),
-  };
-}
-
-/** Takes only known keys with the expected type – unknown entries (e.g. tokens
- *  from an imported radstart file) are dropped and never written back. */
-function normalizeSettings(raw: any): Settings {
-  const settings = defaultSettings();
-  for (const key of Object.keys(settings) as (keyof Settings)[]) {
-    const value = raw?.[key];
-    if (value !== undefined && typeof value === typeof settings[key] && Array.isArray(value) === Array.isArray(settings[key])) {
-      (settings as any)[key] = value;
-    }
-  }
-  settings.watchedFolders = normalizeWatchedFolders(raw);
-  return settings;
-}
-
-/** Validates watched folders and migrates the former `watchedDirectories` list
- *  (one shared tab) to one tab per folder, named after the folder. */
-function normalizeWatchedFolders(raw: any): WatchedFolder[] {
-  const list: any[] = Array.isArray(raw?.watchedFolders)
-    ? raw.watchedFolders
-    : Array.isArray(raw?.watchedDirectories)
-      ? raw.watchedDirectories.map((path: unknown) => ({ path }))
-      : [];
-  return list
-    .filter((f) => typeof f?.path === "string" && f.path.trim() !== "")
-    .map((f) => ({ path: f.path, category: typeof f.category === "string" ? f.category : folderName(f.path) }));
-}
-
-/** Tab of a watched folder; an empty name falls back to the folder name. */
-export const watchedCategory = (folder: WatchedFolder) => folder.category.trim() || folderName(folder.path);
-
-function normalizeConfig(raw: any): Config {
-  return {
-    projects: Array.isArray(raw?.projects) ? raw.projects.map(normalizeProject) : [],
-    settings: normalizeSettings(raw?.settings),
-  };
-}
+export { watchedCategory };
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 function scheduleSave() {
@@ -140,6 +90,11 @@ export async function initStore() {
   store.loaded = true;
 }
 
+/** Replaces the whole configuration (import); it is validated first. */
+export function replaceConfig(raw: unknown) {
+  store.config = normalizeConfig(raw);
+}
+
 export function refresh() {
   store.refreshTick++;
 }
@@ -149,10 +104,25 @@ export function refresh() {
 
 const collator = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
 
-/** Highest version first (as radstart did), then by name. */
+const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+
+export const isPinned = (project: Project) =>
+  store.config.settings.pinnedPaths.some((p) => samePath(p, project.path));
+
+export function togglePin(project: Project) {
+  const pinned = store.config.settings.pinnedPaths;
+  const index = pinned.findIndex((p) => samePath(p, project.path));
+  if (index >= 0) pinned.splice(index, 1);
+  else pinned.push(project.path);
+}
+
+/** Favorites first, then highest version (as radstart did), then by name. */
 function sortProjects(list: Project[]) {
   return [...list].sort(
-    (a, b) => collator.compare(b.version, a.version) || collator.compare(a.name, b.name),
+    (a, b) =>
+      Number(isPinned(b)) - Number(isPinned(a)) ||
+      collator.compare(b.version, a.version) ||
+      collator.compare(a.name, b.name),
   );
 }
 
@@ -169,17 +139,39 @@ export function addWatchedFolder(path: string): View {
   return categoryView(watchedCategory(folder));
 }
 
-/** Tabs come from project categories and from the tabs of watched folders. */
+/** Tabs come from project categories and from the tabs of watched folders,
+ *  in the user's order. */
 export const categories = computed(() =>
-  [
-    ...new Set(
-      [
-        ...store.config.projects.map((p) => p.category.trim()),
-        ...store.config.settings.watchedFolders.map(watchedCategory),
-      ].filter(Boolean),
-    ),
-  ].sort(collator.compare),
+  orderTabs(
+    [
+      ...new Set(
+        [
+          ...store.config.projects.map((p) => p.category.trim()),
+          ...store.config.settings.watchedFolders.map(watchedCategory),
+        ].filter(Boolean),
+      ),
+    ],
+    store.config.settings.tabOrder,
+  ),
 );
+
+/** Drag & drop in the tab bar: puts `category` before `before`. */
+export function moveTab(category: string, before: string) {
+  if (category === before) return;
+  const order = categories.value.filter((c) => c !== category);
+  order.splice(order.indexOf(before), 0, category);
+  store.config.settings.tabOrder = order;
+}
+
+/** Renames a tab: the category of its projects and watched folders. */
+export function renameTab(from: string, to: string) {
+  const name = to.trim();
+  if (!name || name === from) return;
+  for (const p of store.config.projects) if (p.category.trim() === from) p.category = name;
+  for (const f of store.config.settings.watchedFolders) if (watchedCategory(f) === from) f.category = name;
+  store.config.settings.tabOrder = store.config.settings.tabOrder.map((c) => (c === from ? name : c));
+  if (store.view === categoryView(from)) store.view = categoryView(name);
+}
 
 /** A watched subfolder that is also configured as a project is shown only once. */
 function watchedWithoutConfigured() {

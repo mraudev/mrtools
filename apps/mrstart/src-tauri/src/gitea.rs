@@ -1,7 +1,7 @@
 //! Gitea part of the dashboard (REST API v1). `host` is always the validated
 //! host from the settings; owner/repo are validated before use in a URL.
 
-use crate::dashboard::{is_sha, DashboardPull, Lists, Status};
+use crate::dashboard::{ci_state, is_sha, web_link, DashboardPull, Lists, Status};
 use crate::pulls::is_name;
 use serde::Deserialize;
 
@@ -119,7 +119,26 @@ struct CommitUser {
     date: String,
 }
 
-type Details = (Option<Pull>, Option<String>);
+/// Combined commit status (Gitea Actions or external CI).
+#[derive(Deserialize)]
+struct CombinedStatus {
+    state: Option<String>,
+    #[serde(default)]
+    statuses: Vec<CommitStatus>,
+}
+
+#[derive(Deserialize)]
+struct CommitStatus {
+    target_url: Option<String>,
+}
+
+#[derive(Default)]
+struct Details {
+    pull: Option<Pull>,
+    base_date: Option<String>,
+    ci: Option<&'static str>,
+    ci_url: Option<String>,
+}
 
 /// Starts loading the merge information and the merge base date of each pull
 /// request (the search result contains neither).
@@ -145,12 +164,26 @@ fn spawn_details(
             );
             tauri::async_runtime::spawn(async move {
                 let Some((owner, name)) = repo else {
-                    return (None, None);
+                    return Details::default();
                 };
                 let api = format!("https://{host}/api/v1/repos/{owner}/{name}");
                 let Ok(pull) = get::<Pull>(&client, &token, format!("{api}/pulls/{number}")).await
                 else {
-                    return (None, None);
+                    return Details::default();
+                };
+                let (ci, ci_url) = if is_sha(&pull.head.sha) {
+                    let url = format!("{api}/commits/{}/status", pull.head.sha);
+                    match get::<CombinedStatus>(&client, &token, url).await {
+                        Ok(s) if !s.statuses.is_empty() => (
+                            s.state.as_deref().and_then(ci_state),
+                            s.statuses
+                                .iter()
+                                .find_map(|st| st.target_url.as_deref().and_then(web_link)),
+                        ),
+                        _ => (None, None),
+                    }
+                } else {
+                    (None, None)
                 };
                 let base_date = match pull.merge_base.as_deref().filter(|sha| is_sha(sha)) {
                     Some(sha) => get::<CommitInfo>(
@@ -165,14 +198,25 @@ fn spawn_details(
                     .map(|c| c.commit.committer.date),
                     None => None,
                 };
-                (Some(pull), base_date)
+                Details {
+                    pull: Some(pull),
+                    base_date,
+                    ci,
+                    ci_url,
+                }
             })
         })
         .collect()
 }
 
 /// Builds a dashboard entry from a search hit; `None` if its data is unsafe.
-fn entry(host: &str, issue: Issue, (pull, base_date): Details) -> Option<DashboardPull> {
+fn entry(host: &str, issue: Issue, details: Details) -> Option<DashboardPull> {
+    let Details {
+        pull,
+        base_date,
+        ci,
+        ci_url,
+    } = details;
     let pull = pull.as_ref();
     let repository = issue.repository?;
     let link_ok = issue.html_url.starts_with(&format!("https://{host}/"));
@@ -202,6 +246,8 @@ fn entry(host: &str, issue: Issue, (pull, base_date): Details) -> Option<Dashboa
         status,
         can_update: pull.is_some_and(is_behind),
         has_conflicts: status == Status::Conflict,
+        ci,
+        ci_url,
         review_decision: None,
         author: issue.user.map(|u| u.login).unwrap_or_default(),
     })
@@ -217,11 +263,11 @@ pub async fn fetch(client: &reqwest::Client, host: &str, token: &str) -> Result<
 
     let mut authored_entries = Vec::new();
     for (issue, task) in authored.into_iter().zip(authored_details) {
-        authored_entries.extend(entry(host, issue, task.await.unwrap_or((None, None))));
+        authored_entries.extend(entry(host, issue, task.await.unwrap_or_default()));
     }
     let mut review_entries = Vec::new();
     for (issue, task) in reviews.into_iter().zip(review_details) {
-        review_entries.extend(entry(host, issue, task.await.unwrap_or((None, None))));
+        review_entries.extend(entry(host, issue, task.await.unwrap_or_default()));
     }
     Ok((authored_entries, review_entries))
 }
@@ -306,19 +352,19 @@ mod tests {
         assert!(entry(
             host,
             issue("https://gitea.example.com/team/app/pulls/1", "team"),
-            (None, None)
+            Details::default()
         )
         .is_some());
         assert!(entry(
             host,
             issue("https://evil.example/team/app/pulls/1", "team"),
-            (None, None)
+            Details::default()
         )
         .is_none());
         assert!(entry(
             host,
             issue("https://gitea.example.com/x/app/pulls/1", "a/b"),
-            (None, None)
+            Details::default()
         )
         .is_none());
     }

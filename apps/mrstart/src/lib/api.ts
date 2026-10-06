@@ -17,6 +17,10 @@ export const api = {
   loadConfig: () => invoke<unknown>("load_config"),
   saveConfig: (config: Config) => invoke<void>("save_config", { config }),
   configPath: () => invoke<string>("config_path"),
+  exportConfig: (path: string, config: Config) => invoke<void>("export_config", { path, config }),
+  importConfig: (path: string) => invoke<unknown>("import_config", { path }),
+  releaseNotes: (version: string) => invoke<string>("release_notes", { version }),
+  gitFetchAll: (paths: string[]) => invoke<string[]>("git_fetch_all", { paths }),
 
   existingFiles: (directory: string, patterns: string[]) =>
     invoke<string[]>("existing_files", { directory, patterns }),

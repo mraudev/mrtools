@@ -29,14 +29,16 @@ async function addWatchedDirectory() {
   <div class="p-5">
     <div
       v-if="visibleProjects.length"
-      class="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-4"
+      class="grid gap-4"
+      :class="store.config.settings.compactTiles ? 'grid-cols-[repeat(auto-fill,minmax(280px,1fr))]' : 'grid-cols-[repeat(auto-fill,minmax(340px,1fr))]'"
     >
       <ProjectTile
-        v-for="project in visibleProjects"
+        v-for="(project, index) in visibleProjects"
         :key="project.id"
         :project="project"
         :editable="!isWatched(project)"
         :show-category="filtering"
+        :selected="filtering && index === store.selected"
       />
     </div>
 

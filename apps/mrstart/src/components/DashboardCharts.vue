@@ -6,8 +6,9 @@ import Tip from "./ui/Tip.vue";
 import { dashboard } from "@/lib/dashboard";
 import type { DashboardPull, PullStatus } from "@/lib/types";
 
-const authored = computed(() => dashboard.authored);
-const reviews = computed(() => dashboard.reviewRequests);
+const props = defineProps<{ authored: DashboardPull[]; reviews: DashboardPull[] }>();
+const authored = computed(() => props.authored);
+const reviews = computed(() => props.reviews);
 
 // --- Key figures ------------------------------------------------------------
 

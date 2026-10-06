@@ -39,6 +39,9 @@ jobs:
       - name: Frontend (Typecheck + Build)
         run: npm run build
 
+      - name: Frontend (Tests)
+        run: npm test
+
       - name: Rust (Clippy + Tests)
         working-directory: src-tauri
         run: |

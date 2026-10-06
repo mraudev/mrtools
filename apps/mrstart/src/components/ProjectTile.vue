@@ -22,8 +22,10 @@ import {
   GitPullRequest,
   GitPullRequestCreate,
   History,
+  FilePen,
   Pencil,
   SquareTerminal,
+  Star,
   Terminal,
   TriangleAlert,
 } from "@lucide/vue";
@@ -33,10 +35,32 @@ import { baseName, launch, openGitTool, openPath, runProjectCommand } from "@/li
 import { runGit } from "@/lib/gitConsole";
 import { openInBrowser, pullErrorFor, pullFor } from "@/lib/pulls";
 import { ago, dateTime } from "@/lib/time";
-import { openProjectEditor, store } from "@/lib/store";
+import { isPinned, openProjectEditor, store, togglePin } from "@/lib/store";
+import { toast, toastError } from "@/lib/toast";
 import type { BranchInfo, Project } from "@/lib/types";
 
-const props = defineProps<{ project: Project; editable: boolean; showCategory?: boolean }>();
+const props = defineProps<{
+  project: Project;
+  editable: boolean;
+  showCategory?: boolean;
+  /** Keyboard selection (arrow keys / Enter in the filter). */
+  selected?: boolean;
+}>();
+
+const compact = computed(() => store.config.settings.compactTiles);
+const pinned = computed(() => isPinned(props.project));
+
+/** Copies the fix (e.g. the safe.directory command) or the whole message. */
+async function copyGitError() {
+  const command = gitError.value.split("\n").find((line) => line.includes("git config"));
+  const text = command ? command.replace(/^.*?(git config)/, "$1") : gitError.value;
+  try {
+    await navigator.clipboard.writeText(text);
+    toast("success", "In die Zwischenablage kopiert", text);
+  } catch (e) {
+    toastError("Kopieren fehlgeschlagen", e);
+  }
+}
 
 /** `null` = not a git repository. */
 const info = ref<BranchInfo | null>(null);
@@ -129,11 +153,17 @@ const quickActions = [
 </script>
 
 <template>
-  <article class="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
+  <article
+    class="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md"
+    :class="selected && 'ring-2 ring-accent'"
+  >
     <div class="h-[3px] bg-linear-to-r from-accent via-accent/60 to-accent/20" />
 
-    <header class="flex items-start gap-3 px-4 pt-3.5 pb-3">
-      <div class="grid size-9 shrink-0 place-items-center rounded-lg bg-accent/15 text-accent-text [&_svg]:size-[18px]">
+    <header class="flex items-start gap-3 px-4" :class="compact ? 'pt-2.5 pb-2' : 'pt-3.5 pb-3'">
+      <div
+        v-if="!compact"
+        class="grid size-9 shrink-0 place-items-center rounded-lg bg-accent/15 text-accent-text [&_svg]:size-[18px]"
+      >
         <FolderGit2 v-if="branch !== null" />
         <Folder v-else />
       </div>
@@ -160,33 +190,53 @@ const quickActions = [
           <p class="mt-0.5 truncate font-mono text-xs text-muted-foreground">{{ project.path }}</p>
         </Tip>
       </div>
-      <Tip v-if="editable" text="Projekt bearbeiten">
-        <button
-          class="icon-btn -mt-0.5 -mr-1.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-          aria-label="Projekt bearbeiten"
-          @click="openProjectEditor(project)"
-        >
-          <Pencil />
-        </button>
-      </Tip>
+      <div class="-mt-0.5 -mr-1.5 flex">
+        <Tip :text="pinned ? 'Favorit entfernen' : 'Als Favorit oben anheften'">
+          <button
+            class="icon-btn"
+            :class="!pinned && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'"
+            :aria-label="pinned ? 'Favorit entfernen' : 'Als Favorit anheften'"
+            :aria-pressed="pinned"
+            @click="togglePin(project)"
+          >
+            <Star :class="pinned && 'fill-current text-accent-text'" />
+          </button>
+        </Tip>
+        <Tip v-if="editable" text="Projekt bearbeiten">
+          <button
+            class="icon-btn opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+            aria-label="Projekt bearbeiten"
+            @click="openProjectEditor(project)"
+          >
+            <Pencil />
+          </button>
+        </Tip>
+      </div>
     </header>
 
     <div class="grid grid-cols-4 gap-1 px-3">
       <Tip v-for="q in quickActions" :key="q.label" :text="q.tooltip">
         <button
-          class="flex flex-col items-center gap-1 rounded-lg py-2 text-[11px] text-muted-foreground transition-colors hover:bg-foreground/6 hover:text-foreground [&_svg]:size-[18px]"
+          class="flex flex-col items-center gap-1 rounded-lg text-[11px] text-muted-foreground transition-colors hover:bg-foreground/6 hover:text-foreground [&_svg]:size-[18px]"
+          :class="compact ? 'py-1.5' : 'py-2'"
+          :aria-label="q.tooltip"
           @click="q.run"
         >
           <component :is="q.icon" />
-          {{ q.label }}
+          <template v-if="!compact">{{ q.label }}</template>
         </button>
       </Tip>
     </div>
 
-    <div v-if="actions.length" class="grid grid-cols-2 gap-1.5 px-3 pt-2">
+    <div
+      v-if="actions.length"
+      class="px-3 pt-2"
+      :class="compact ? 'flex flex-wrap gap-1' : 'grid grid-cols-2 gap-1.5'"
+    >
       <Tip v-for="a in actions" :key="a.key" :text="a.tooltip">
         <button
-          class="flex h-8 min-w-0 items-center gap-2 rounded-md border border-border bg-foreground/[0.03] px-2.5 text-left text-[13px] transition-colors hover:border-accent/50 hover:bg-accent/10 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-accent-text"
+          class="flex min-w-0 items-center gap-2 rounded-md border border-border bg-foreground/[0.03] text-left transition-colors hover:border-accent/50 hover:bg-accent/10 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-accent-text"
+          :class="compact ? 'h-7 max-w-full px-2 text-xs' : 'h-8 px-2.5 text-[13px]'"
           @click="a.run"
         >
           <component :is="a.icon" />
@@ -195,16 +245,16 @@ const quickActions = [
       </Tip>
     </div>
 
-    <div class="min-h-3 flex-1" />
+    <div class="flex-1" :class="compact ? 'min-h-2' : 'min-h-3'" />
 
-    <Tip v-if="gitError" :text="gitError">
-      <footer
-        class="flex items-center gap-2 border-t border-border bg-red-500/5 py-2 pr-2 pl-3.5 text-xs text-red-600 dark:text-red-400"
-        tabindex="0"
+    <Tip v-if="gitError" :text="`${gitError}\n\nKlicken zum Kopieren.`">
+      <button
+        class="flex w-full items-center gap-2 border-t border-border bg-red-500/5 py-2 pr-2 pl-3.5 text-left text-xs text-red-600 hover:bg-red-500/10 dark:text-red-400"
+        @click="copyGitError"
       >
         <TriangleAlert class="size-3.5 shrink-0" />
         <span class="min-w-0 flex-1 truncate">{{ gitError.split("\n")[0] }}</span>
-      </footer>
+      </button>
     </Tip>
 
     <footer
@@ -215,6 +265,14 @@ const quickActions = [
       <Tip :text="branch || 'detached HEAD'">
         <span class="min-w-0 flex-1 truncate font-mono text-xs" :class="!branch && 'text-muted-foreground italic'">
           {{ branch || "detached HEAD" }}
+        </span>
+      </Tip>
+      <Tip
+        v-if="info && info.changes > 0"
+        :text="`${info.changes} geänderte ${info.changes === 1 ? 'Datei' : 'Dateien'} – noch nicht committet`"
+      >
+        <span class="inline-flex h-7 shrink-0 items-center gap-0.5 px-1 text-xs tabular-nums" tabindex="0">
+          <FilePen class="size-3.5" :style="{ color: 'var(--status-warning)' }" />{{ info.changes }}
         </span>
       </Tip>
       <Tip v-if="sync" :text="sync.tip">

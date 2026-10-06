@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import {
   AppWindow,
   Briefcase,
@@ -20,6 +20,9 @@ import {
   RefreshCw,
   Sparkles,
   Sun,
+  Timer,
+  Download,
+  Upload,
   SquareTerminal,
   X,
 } from "@lucide/vue";
@@ -29,7 +32,9 @@ import SecretField from "./ui/SecretField.vue";
 import Tip from "./ui/Tip.vue";
 import { api } from "@/lib/api";
 import { openPath } from "@/lib/actions";
-import { addWatchedFolder, categories, openProjectEditor, store } from "@/lib/store";
+import { addWatchedFolder, categories, openProjectEditor, replaceConfig, store } from "@/lib/store";
+import { toast, toastError } from "@/lib/toast";
+import Dialog from "./ui/Dialog.vue";
 import { ACCENTS } from "@/lib/theme";
 import { DEFAULT_COMMANDS, folderName, type GitTool, type ReviewTarget, type Theme } from "@/lib/types";
 import { checkForUpdate, updater } from "@/lib/updater";
@@ -113,6 +118,41 @@ const updateLabel = computed(() => {
       return "Updates werden beim Start und alle 6 Stunden geprüft.";
   }
 });
+
+const jsonFilter = [{ name: "Konfiguration", extensions: ["json"] }];
+
+async function exportConfig() {
+  const path = await saveDialog({ title: "Konfiguration exportieren", defaultPath: "mrstart-konfiguration.json", filters: jsonFilter });
+  if (!path) return;
+  try {
+    await api.exportConfig(path, store.config);
+    toast("success", "Konfiguration exportiert", path);
+  } catch (e) {
+    toastError("Export fehlgeschlagen", e);
+  }
+}
+
+const importOpen = ref(false);
+const importPath = ref("");
+const importData = ref<unknown>(null);
+
+async function chooseImport() {
+  const path = await openDialog({ title: "Konfiguration importieren", filters: jsonFilter });
+  if (typeof path !== "string") return;
+  try {
+    importData.value = await api.importConfig(path);
+    importPath.value = path;
+    importOpen.value = true;
+  } catch (e) {
+    toastError("Import fehlgeschlagen", e);
+  }
+}
+
+function confirmImport() {
+  replaceConfig(importData.value);
+  importOpen.value = false;
+  toast("success", "Konfiguration importiert");
+}
 
 function configDirectory() {
   return configPath.value.replace(/[\\/][^\\/]+$/, "");
@@ -324,9 +364,35 @@ function configDirectory() {
       </p>
     </Section>
 
+    <Section :icon="Timer" title="Im Hintergrund">
+      <div class="space-y-3">
+        <div class="flex flex-wrap items-center gap-3">
+          <label class="text-sm" for="auto-fetch">Alle Projekte automatisch fetchen</label>
+          <select id="auto-fetch" v-model.number="settings.autoFetchMinutes" class="input h-8 w-auto">
+            <option :value="0">Aus</option>
+            <option :value="5">alle 5 Minuten</option>
+            <option :value="15">alle 15 Minuten</option>
+            <option :value="30">alle 30 Minuten</option>
+            <option :value="60">jede Stunde</option>
+          </select>
+          <span class="text-xs text-muted-foreground">
+            Aktualisiert ↑/↓ in den Kacheln; holt nur, ändert keine lokalen Branches. Anmeldedialoge werden unterdrückt.
+          </span>
+        </div>
+        <label class="flex items-center gap-2 text-sm">
+          <input v-model="settings.notifyReviews" type="checkbox" class="size-4 accent-[var(--accent)]" />
+          Windows-Benachrichtigung bei neu angeforderten Reviews (das Dashboard prüft alle 5 Minuten)
+        </label>
+      </div>
+    </Section>
+
     <Section :icon="Palette" title="Darstellung">
       <div class="flex flex-wrap items-center gap-x-8 gap-y-3">
         <Segmented v-model="settings.theme" :options="themes" />
+        <label class="flex items-center gap-2 text-sm">
+          <input v-model="settings.compactTiles" type="checkbox" class="size-4 accent-[var(--accent)]" />
+          Kompakte Kacheln
+        </label>
         <div class="flex flex-wrap gap-1.5">
           <Tip v-for="(value, name) in ACCENTS" :key="name" :text="name">
             <button
@@ -367,7 +433,24 @@ function configDirectory() {
             </button>
           </Tip>
         </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button class="btn btn-outline" @click="exportConfig"><Upload />Konfiguration exportieren</button>
+          <button class="btn btn-outline" @click="chooseImport"><Download />Konfiguration importieren</button>
+          <span class="text-xs text-muted-foreground">Projekte und Einstellungen – ohne Tokens.</span>
+        </div>
       </div>
     </Section>
+
+    <Dialog v-model:open="importOpen" title="Konfiguration importieren" size="sm" :description="importPath">
+      <p>
+        Die aktuellen Projekte und Einstellungen werden durch die importierte Datei
+        <b>ersetzt</b>. Tokens bleiben unverändert.
+      </p>
+      <template #footer>
+        <div class="flex-1" />
+        <button class="btn btn-ghost" @click="importOpen = false">Abbrechen</button>
+        <button class="btn btn-primary" @click="confirmImport">Ersetzen</button>
+      </template>
+    </Dialog>
   </div>
 </template>
