@@ -40,13 +40,19 @@ const props = defineProps<{ project: Project; editable: boolean; showCategory?: 
 
 /** `null` = not a git repository. */
 const info = ref<BranchInfo | null>(null);
+/** Git cannot be used here (not installed, dubious ownership …). */
+const gitError = ref("");
 
 watch(
   () => [props.project.path, store.refreshTick, store.config.settings.giteaHost],
   async () => {
-    info.value = await api
-      .branchInfo(props.project.path, store.config.settings.giteaHost)
-      .catch(() => null);
+    try {
+      info.value = await api.branchInfo(props.project.path, store.config.settings.giteaHost);
+      gitError.value = "";
+    } catch (e) {
+      info.value = null;
+      gitError.value = String(e);
+    }
   },
   { immediate: true },
 );
@@ -191,8 +197,18 @@ const quickActions = [
 
     <div class="min-h-3 flex-1" />
 
+    <Tip v-if="gitError" :text="gitError">
+      <footer
+        class="flex items-center gap-2 border-t border-border bg-red-500/5 py-2 pr-2 pl-3.5 text-xs text-red-600 dark:text-red-400"
+        tabindex="0"
+      >
+        <TriangleAlert class="size-3.5 shrink-0" />
+        <span class="min-w-0 flex-1 truncate">{{ gitError.split("\n")[0] }}</span>
+      </footer>
+    </Tip>
+
     <footer
-      v-if="branch !== null"
+      v-else-if="branch !== null"
       class="flex items-center gap-1 border-t border-border bg-foreground/[0.02] py-1.5 pr-1.5 pl-3.5"
     >
       <GitBranch class="size-3.5 shrink-0 text-muted-foreground" />

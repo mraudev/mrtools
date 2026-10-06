@@ -4,11 +4,37 @@ use crate::launch::CREATE_NO_WINDOW;
 use serde::Serialize;
 use std::io::Read;
 use std::os::windows::process::CommandExt;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::OnceLock;
 use tauri::ipc::Channel;
 
+/// git.exe from PATH, or from the usual Git for Windows install locations
+/// (e.g. when Git was installed with "Use Git from Git Bash only").
+fn git_exe() -> &'static Path {
+    static EXE: OnceLock<PathBuf> = OnceLock::new();
+    EXE.get_or_init(|| {
+        let mut dirs: Vec<PathBuf> = std::env::var_os("PATH")
+            .map(|p| std::env::split_paths(&p).collect())
+            .unwrap_or_default();
+        for (var, sub) in [
+            ("ProgramFiles", r"Git\cmd"),
+            ("ProgramFiles(x86)", r"Git\cmd"),
+            ("LOCALAPPDATA", r"Programs\Git\cmd"),
+        ] {
+            if let Some(base) = std::env::var_os(var) {
+                dirs.push(Path::new(&base).join(sub));
+            }
+        }
+        dirs.iter()
+            .map(|dir| dir.join("git.exe"))
+            .find(|exe| exe.is_file())
+            .unwrap_or_else(|| PathBuf::from("git"))
+    })
+}
+
 fn git(path: &str) -> Command {
-    let mut cmd = Command::new("git");
+    let mut cmd = Command::new(git_exe());
     cmd.current_dir(path)
         // Never wait for credentials on a terminal nobody can see.
         .env("GIT_TERMINAL_PROMPT", "0")
@@ -20,10 +46,58 @@ fn git(path: &str) -> Command {
 /// Runs `git <args>` in `path` and returns the trimmed stdout, or `None` if
 /// git fails (e.g. because `path` is not inside a repository).
 pub fn git_output(path: &str, args: &[&str]) -> Option<String> {
-    let out = git(path).args(args).output().ok()?;
-    out.status
-        .success()
-        .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+    git_try(path, args).ok()
+}
+
+/// Why a git call failed.
+pub enum GitFailure {
+    /// git.exe could not be started.
+    NotInstalled,
+    /// git ran and failed; the first line of stderr.
+    Failed(String),
+}
+
+pub fn git_try(path: &str, args: &[&str]) -> Result<String, GitFailure> {
+    let out = git(path)
+        .args(args)
+        .output()
+        .map_err(|_| GitFailure::NotInstalled)?;
+    if out.status.success() {
+        Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        Err(GitFailure::Failed(stderr.trim().to_string()))
+    }
+}
+
+/// Checked-out branch; empty for a detached HEAD. Works with any Git version
+/// (`git branch --show-current` needs Git 2.22).
+pub fn current_branch(path: &str) -> Option<String> {
+    git_output(path, &["rev-parse", "--is-inside-work-tree"])?;
+    Some(git_output(path, &["symbolic-ref", "--short", "-q", "HEAD"]).unwrap_or_default())
+}
+
+/// Classifies why `path` cannot be used as a repository: `Ok(())` if it is
+/// simply no repository, otherwise a message for the user.
+pub fn repository_problem(path: &str) -> Result<(), String> {
+    if !Path::new(path).is_dir() {
+        return Ok(());
+    }
+    match git_try(path, &["rev-parse", "--is-inside-work-tree"]) {
+        Ok(_) => Ok(()),
+        Err(GitFailure::NotInstalled) => Err(
+            "Git wurde nicht gefunden – Git for Windows installieren (Option „Git from the command line“) \
+             oder in den PATH aufnehmen."
+                .into(),
+        ),
+        // Git ≥ 2.35.2 refuses repositories owned by another user.
+        Err(GitFailure::Failed(e)) if e.contains("safe.directory") => Err(format!(
+            "Git verweigert den Zugriff, weil der Ordner einem anderen Benutzer gehört (dubious ownership).\n\
+             Lösung: git config --global --add safe.directory \"{}\"",
+            path.replace('\\', "/")
+        )),
+        Err(GitFailure::Failed(_)) => Ok(()),
+    }
 }
 
 #[derive(Clone, Serialize)]
@@ -132,5 +206,33 @@ mod tests {
     #[test]
     fn unknown_action_is_rejected() {
         assert!(steps("reset --hard").is_err());
+    }
+
+    #[test]
+    fn finds_branch_without_show_current() {
+        let root = std::env::temp_dir().join(format!("mrstart-branch-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let dir = root.to_str().unwrap();
+
+        // Plain folder: no repository and no problem to report.
+        assert_eq!(current_branch(dir), None);
+        assert!(repository_problem(dir).is_ok());
+
+        let run = |args: &[&str]| {
+            git(dir)
+                .args(["-c", "user.name=Test", "-c", "user.email=test@example.com"])
+                .args(args)
+                .output()
+                .unwrap()
+        };
+        run(&["init", "-b", "main"]);
+        run(&["commit", "--allow-empty", "-m", "eins"]);
+        assert_eq!(current_branch(dir).as_deref(), Some("main"));
+
+        run(&["checkout", "--detach"]);
+        assert_eq!(current_branch(dir).as_deref(), Some(""));
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

@@ -5,7 +5,7 @@
 //! HTTPS to api.github.com or the configured Gitea host – never to a host
 //! derived from repository data alone, and never across redirects.
 
-use crate::git::git_output;
+use crate::git::{current_branch, git_output, repository_problem};
 use crate::secrets::{self, Secret};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -205,11 +205,14 @@ fn fetched_at(path: &str) -> Option<u64> {
     u64::try_from(millis).ok()
 }
 
-/// Checked-out branch of `path`; `None` if it is not a git repository.
+/// Checked-out branch of `path`; `Ok(None)` if it is no git repository, an
+/// error if git cannot be used there (not installed, dubious ownership).
 #[tauri::command]
-pub async fn branch_info(path: String, gitea_host: String) -> Option<BranchInfo> {
+pub async fn branch_info(path: String, gitea_host: String) -> Result<Option<BranchInfo>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let branch = git_output(&path, &["branch", "--show-current"])?;
+        let Some(branch) = current_branch(&path) else {
+            return repository_problem(&path).map(|()| None);
+        };
         let create_pull_url = (|| {
             let remote = parse_remote(&git_output(&path, &["remote", "get-url", "origin"])?)?;
             if !is_supported(&remote, self::gitea_host(&gitea_host).as_deref()) {
@@ -224,7 +227,7 @@ pub async fn branch_info(path: String, gitea_host: String) -> Option<BranchInfo>
             .unwrap_or_else(|| "main".to_string());
             compare_url(&remote, &base, &branch)
         })();
-        Some(BranchInfo {
+        Ok(Some(BranchInfo {
             upstream: if branch.is_empty() {
                 None
             } else {
@@ -233,11 +236,10 @@ pub async fn branch_info(path: String, gitea_host: String) -> Option<BranchInfo>
             fetched_at: fetched_at(&path),
             branch,
             create_pull_url,
-        })
+        }))
     })
     .await
-    .ok()
-    .flatten()
+    .map_err(|e| e.to_string())?
 }
 
 #[derive(Deserialize)]
@@ -343,8 +345,7 @@ pub async fn pull_requests(query: PullRequestQuery) -> PullRequestResult {
                 .iter()
                 .map(|path| {
                     scope.spawn(move || {
-                        let branch = git_output(path, &["branch", "--show-current"])
-                            .filter(|b| !b.is_empty())?;
+                        let branch = current_branch(path).filter(|b| !b.is_empty())?;
                         let remote =
                             parse_remote(&git_output(path, &["remote", "get-url", "origin"])?)?;
                         Some((remote, branch, path.clone()))
