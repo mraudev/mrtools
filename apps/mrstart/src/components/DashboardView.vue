@@ -9,6 +9,7 @@ import {
 } from "reka-ui";
 import {
   ChevronDown,
+  CircleDot,
   CircleCheck,
   CircleX,
   Clock,
@@ -53,10 +54,11 @@ const isStale = (pr: DashboardPull) => olderThan(pr.updatedAt, WEEK_MS);
 
 // Filters scope the charts and both lists alike.
 const filter = reactive({ repo: "", provider: "", onlyBehind: false, onlyStale: false });
-const repoOf = (pr: DashboardPull) => `${pr.owner}/${pr.repo}`;
+const repoOf = (item: { owner: string; repo: string }) => `${item.owner}/${item.repo}`;
 const allPulls = computed(() => [...dashboard.authored, ...dashboard.reviewRequests]);
-const repoOptions = computed(() => [...new Set(allPulls.value.map(repoOf))].sort((a, b) => a.localeCompare(b)));
-const providers = computed(() => [...new Set(allPulls.value.map((p) => p.provider))]);
+const allItems = computed(() => [...allPulls.value, ...dashboard.issues]);
+const repoOptions = computed(() => [...new Set(allItems.value.map(repoOf))].sort((a, b) => a.localeCompare(b)));
+const providers = computed(() => [...new Set(allItems.value.map((p) => p.provider))]);
 const filterActive = computed(() => !!(filter.repo || filter.provider || filter.onlyBehind || filter.onlyStale));
 
 function matches(pr: DashboardPull) {
@@ -69,6 +71,15 @@ function matches(pr: DashboardPull) {
 }
 const authored = computed(() => dashboard.authored.filter(matches));
 const reviews = computed(() => dashboard.reviewRequests.filter(matches));
+// "Nur veraltete" concerns branches, so it does not apply to issues.
+const issues = computed(() =>
+  dashboard.issues.filter(
+    (issue) =>
+      (!filter.repo || repoOf(issue) === filter.repo) &&
+      (!filter.provider || issue.provider === filter.provider) &&
+      (!filter.onlyStale || olderThan(issue.updatedAt, WEEK_MS)),
+  ),
+);
 
 function resetFilter() {
   Object.assign(filter, { repo: "", provider: "", onlyBehind: false, onlyStale: false });
@@ -88,7 +99,7 @@ const reviewTip = computed(
 );
 
 const time = (date: Date) => date.toLocaleTimeString("de", { hour: "2-digit", minute: "2-digit" });
-const provider = (pr: DashboardPull) => (pr.provider === "gitea" ? "Gitea" : "GitHub");
+const provider = (item: { provider: string }) => (item.provider === "gitea" ? "Gitea" : "GitHub");
 
 function baseTip(pr: DashboardPull): string {
   const base = pr.base || "dem Ziel-Branch";
@@ -134,7 +145,7 @@ function baseTip(pr: DashboardPull): string {
       </div>
 
       <!-- One filter row above everything it scopes -->
-      <div v-if="allPulls.length" class="flex flex-wrap items-center gap-2 text-[13px]">
+      <div v-if="allItems.length" class="flex flex-wrap items-center gap-2 text-[13px]">
         <select v-model="filter.repo" class="input h-8 w-auto max-w-64 pr-7" aria-label="Repository">
           <option value="">Alle Repositories</option>
           <option v-for="r in repoOptions" :key="r" :value="r">{{ r }}</option>
@@ -162,7 +173,7 @@ function baseTip(pr: DashboardPull): string {
         </button>
         <template v-if="filterActive">
           <span class="text-xs text-muted-foreground">
-            {{ authored.length + reviews.length }} von {{ allPulls.length }}
+            {{ authored.length + reviews.length + issues.length }} von {{ allItems.length }}
           </span>
           <button class="btn btn-ghost h-8" @click="resetFilter">Zurücksetzen</button>
         </template>
@@ -323,6 +334,36 @@ function baseTip(pr: DashboardPull): string {
         </ul>
         <p v-else class="px-4 py-6 text-center text-muted-foreground">
           {{ dashboard.loading ? "Wird geladen …" : "Keine Reviews angefordert." }}
+        </p>
+      </section>
+      <section class="rounded-xl border border-border bg-card">
+        <h2 class="flex items-center gap-2 border-b border-border px-4 py-3 font-semibold">
+          <CircleDot class="size-4 text-accent-text" />
+          Mir zugewiesene Issues
+          <span class="rounded bg-foreground/8 px-1.5 text-xs font-normal tabular-nums">{{ issues.length }}</span>
+        </h2>
+        <ul v-if="issues.length" class="divide-y divide-border">
+          <li v-for="issue in issues" :key="`${issue.provider}:${repoOf(issue)}#${issue.number}`" class="px-4 py-2.5">
+            <button class="block max-w-full truncate text-left font-medium hover:text-accent-text hover:underline" @click="openInBrowser(issue.url)">
+              {{ issue.title }}
+            </button>
+            <p class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <span class="rounded border border-border px-1">{{ provider(issue) }}</span>
+              <span>{{ issue.owner }}/{{ issue.repo }} #{{ issue.number }}</span>
+              <span v-if="issue.author">von {{ issue.author }}</span>
+              <span
+                v-if="olderThan(issue.updatedAt, WEEK_MS)"
+                class="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 font-medium text-amber-700 dark:text-amber-400"
+              >
+                <Clock class="size-3" />geändert {{ ago(issue.updatedAt) }}
+              </span>
+              <span v-else>geändert {{ ago(issue.updatedAt) }}</span>
+              <span v-for="label in issue.labels" :key="label" class="rounded-full bg-foreground/8 px-2">{{ label }}</span>
+            </p>
+          </li>
+        </ul>
+        <p v-else class="px-4 py-6 text-center text-muted-foreground">
+          {{ dashboard.loading ? "Wird geladen …" : "Keine Issues zugewiesen." }}
         </p>
       </section>
     </template>

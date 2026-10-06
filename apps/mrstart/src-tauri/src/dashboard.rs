@@ -64,13 +64,35 @@ pub struct DashboardPull {
     pub author: String,
 }
 
-pub type Lists = (Vec<DashboardPull>, Vec<DashboardPull>);
+/// An open issue assigned to the user.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DashboardIssue {
+    pub provider: &'static str,
+    pub owner: String,
+    pub repo: String,
+    pub number: u64,
+    pub title: String,
+    pub url: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub author: String,
+    pub labels: Vec<String>,
+}
+
+/// Own pull requests, review requests and assigned issues of one provider.
+pub struct Lists {
+    pub authored: Vec<DashboardPull>,
+    pub reviews: Vec<DashboardPull>,
+    pub issues: Vec<DashboardIssue>,
+}
 
 #[derive(Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Dashboard {
     authored: Vec<DashboardPull>,
     review_requests: Vec<DashboardPull>,
+    issues: Vec<DashboardIssue>,
     errors: Vec<String>,
 }
 
@@ -126,9 +148,10 @@ pub async fn dashboard(gitea_host: String) -> Dashboard {
     for (name, task) in [("Gitea", gitea), ("GitHub", github)] {
         let Some(task) = task else { continue };
         match task.await.map_err(|e| e.to_string()).and_then(|r| r) {
-            Ok((authored, reviews)) => {
-                result.authored.extend(authored);
-                result.review_requests.extend(reviews);
+            Ok(lists) => {
+                result.authored.extend(lists.authored);
+                result.review_requests.extend(lists.reviews);
+                result.issues.extend(lists.issues);
             }
             Err(e) => result.errors.push(format!("{name}: {e}")),
         }
@@ -139,6 +162,9 @@ pub async fn dashboard(gitea_host: String) -> Dashboard {
         .sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     result
         .review_requests
+        .sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    result
+        .issues
         .sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     result
 }

@@ -1,7 +1,7 @@
 //! Gitea part of the dashboard (REST API v1). `host` is always the validated
 //! host from the settings; owner/repo are validated before use in a URL.
 
-use crate::dashboard::{ci_state, is_sha, web_link, DashboardPull, Lists, Status};
+use crate::dashboard::{ci_state, is_sha, web_link, DashboardIssue, DashboardPull, Lists, Status};
 use crate::pulls::is_name;
 use serde::Deserialize;
 
@@ -14,6 +14,13 @@ struct Issue {
     created_at: String,
     user: Option<User>,
     repository: Option<RepositoryMeta>,
+    #[serde(default)]
+    labels: Vec<Label>,
+}
+
+#[derive(Deserialize)]
+struct Label {
+    name: String,
 }
 
 #[derive(Deserialize)]
@@ -90,18 +97,42 @@ async fn get<T: serde::de::DeserializeOwned>(
     response.json().await.map_err(|e| e.to_string())
 }
 
-/// Open pull requests across all repositories, filtered by `filter`
-/// (`created` or `review_requested`).
+/// Open pull requests or issues (`kind`: `pulls`/`issues`) across all
+/// repositories, filtered by `filter` (`created`, `review_requested`, `assigned`).
 async fn search(
     client: &reqwest::Client,
     host: &str,
     token: &str,
+    kind: &str,
     filter: &str,
 ) -> Result<Vec<Issue>, String> {
     let url = format!(
-        "https://{host}/api/v1/repos/issues/search?type=pulls&state=open&{filter}=true&limit=50"
+        "https://{host}/api/v1/repos/issues/search?type={kind}&state=open&{filter}=true&limit=50"
     );
     get(client, token, url).await
+}
+
+/// An assigned issue; `None` if its data is unsafe to link.
+fn issue_entry(host: &str, issue: Issue) -> Option<DashboardIssue> {
+    let repository = issue.repository?;
+    if !issue.html_url.starts_with(&format!("https://{host}/"))
+        || !is_name(&repository.owner)
+        || !is_name(&repository.name)
+    {
+        return None;
+    }
+    Some(DashboardIssue {
+        provider: "gitea",
+        owner: repository.owner,
+        repo: repository.name,
+        number: issue.number,
+        title: issue.title,
+        url: issue.html_url,
+        created_at: issue.created_at,
+        updated_at: issue.updated_at,
+        author: issue.user.map(|u| u.login).unwrap_or_default(),
+        labels: issue.labels.into_iter().map(|l| l.name).collect(),
+    })
 }
 
 #[derive(Deserialize)]
@@ -254,8 +285,9 @@ fn entry(host: &str, issue: Issue, details: Details) -> Option<DashboardPull> {
 }
 
 pub async fn fetch(client: &reqwest::Client, host: &str, token: &str) -> Result<Lists, String> {
-    let authored = search(client, host, token, "created").await?;
-    let reviews = search(client, host, token, "review_requested").await?;
+    let authored = search(client, host, token, "pulls", "created").await?;
+    let reviews = search(client, host, token, "pulls", "review_requested").await?;
+    let issues = search(client, host, token, "issues", "assigned").await?;
 
     // Both lists load their details in parallel.
     let authored_details = spawn_details(client, host, token, &authored);
@@ -269,7 +301,14 @@ pub async fn fetch(client: &reqwest::Client, host: &str, token: &str) -> Result<
     for (issue, task) in reviews.into_iter().zip(review_details) {
         review_entries.extend(entry(host, issue, task.await.unwrap_or_default()));
     }
-    Ok((authored_entries, review_entries))
+    Ok(Lists {
+        authored: authored_entries,
+        reviews: review_entries,
+        issues: issues
+            .into_iter()
+            .filter_map(|issue| issue_entry(host, issue))
+            .collect(),
+    })
 }
 
 /// Gitea's "Update branch": merges (or rebases onto) the base branch.
@@ -347,6 +386,7 @@ mod tests {
                 name: "app".into(),
                 owner: owner.into(),
             }),
+            labels: vec![],
         };
         let host = "gitea.example.com";
         assert!(entry(

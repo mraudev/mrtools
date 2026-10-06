@@ -3,7 +3,7 @@ import { isPermissionGranted, requestPermission, sendNotification } from "@tauri
 import { api } from "./api";
 import { store } from "./store";
 import { toast, toastError } from "./toast";
-import type { DashboardPull } from "./types";
+import type { DashboardIssue, DashboardPull } from "./types";
 
 export const dashboard = reactive({
   /** `false` if neither a Gitea host+token nor a GitHub token is set up. */
@@ -11,6 +11,7 @@ export const dashboard = reactive({
   loading: false,
   authored: [] as DashboardPull[],
   reviewRequests: [] as DashboardPull[],
+  issues: [] as DashboardIssue[],
   errors: [] as string[],
   loadedAt: null as Date | null,
   /** Key of the pull request whose branch is being updated. */
@@ -53,7 +54,7 @@ export async function loadDashboard() {
   const giteaHost = store.config.settings.giteaHost;
   dashboard.configured = tokens.github || (tokens.gitea && giteaHost.trim() !== "");
   if (!dashboard.configured) {
-    Object.assign(dashboard, { authored: [], reviewRequests: [], errors: [], loadedAt: null });
+    Object.assign(dashboard, { authored: [], reviewRequests: [], issues: [], errors: [], loadedAt: null });
     return;
   }
 

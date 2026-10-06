@@ -1,6 +1,6 @@
 //! GitHub part of the dashboard (GraphQL API).
 
-use crate::dashboard::{ci_state, is_sha, DashboardPull, Lists, Status};
+use crate::dashboard::{ci_state, is_sha, DashboardIssue, DashboardPull, Lists, Status};
 use crate::pulls::is_name;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -12,6 +12,16 @@ query {
   }
   reviews: search(query: "is:pr is:open review-requested:@me archived:false sort:updated-desc", type: ISSUE, first: 50) {
     nodes { ...pr }
+  }
+  issues: search(query: "is:issue is:open assignee:@me archived:false sort:updated-desc", type: ISSUE, first: 50) {
+    nodes {
+      ... on Issue {
+        number title url createdAt updatedAt
+        author { login }
+        repository { name owner { login } }
+        labels(first: 5) { nodes { name } }
+      }
+    }
   }
 }
 fragment pr on PullRequest {
@@ -244,10 +254,71 @@ pub async fn fetch(client: &reqwest::Client, token: &str) -> Result<Lists, Strin
     let parse = |value: Value| serde_json::from_value::<Search>(value).map_err(|e| e.to_string());
     let authored = to_dashboard(parse(data["authored"].take())?);
     let reviews = to_dashboard(parse(data["reviews"].take())?);
-    Ok((
-        with_base_dates(client, token, authored).await,
-        with_base_dates(client, token, reviews).await,
-    ))
+    let issues: IssueSearch =
+        serde_json::from_value(data["issues"].take()).map_err(|e| e.to_string())?;
+    Ok(Lists {
+        authored: with_base_dates(client, token, authored).await,
+        reviews: with_base_dates(client, token, reviews).await,
+        issues: issues
+            .nodes
+            .into_iter()
+            .flatten()
+            .filter_map(issue_entry)
+            .collect(),
+    })
+}
+
+#[derive(Deserialize)]
+struct IssueSearch {
+    nodes: Vec<Option<IssueNode>>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct IssueNode {
+    number: u64,
+    title: String,
+    url: String,
+    created_at: String,
+    updated_at: String,
+    author: Option<Login>,
+    repository: Repository,
+    labels: Option<LabelNodes>,
+}
+
+#[derive(Deserialize)]
+struct LabelNodes {
+    nodes: Vec<LabelNode>,
+}
+
+#[derive(Deserialize)]
+struct LabelNode {
+    name: String,
+}
+
+/// An assigned issue; `None` if its data is unsafe to link.
+fn issue_entry(issue: IssueNode) -> Option<DashboardIssue> {
+    if !is_name(&issue.repository.owner.login)
+        || !is_name(&issue.repository.name)
+        || !issue.url.starts_with("https://github.com/")
+    {
+        return None;
+    }
+    Some(DashboardIssue {
+        provider: "github",
+        owner: issue.repository.owner.login,
+        repo: issue.repository.name,
+        number: issue.number,
+        title: issue.title,
+        url: issue.url,
+        created_at: issue.created_at,
+        updated_at: issue.updated_at,
+        author: issue.author.map(|a| a.login).unwrap_or_default(),
+        labels: issue
+            .labels
+            .map(|l| l.nodes.into_iter().map(|n| n.name).collect())
+            .unwrap_or_default(),
+    })
 }
 
 /// Merges or rebases the base branch into the pull request branch. Fails if

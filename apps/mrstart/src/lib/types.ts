@@ -189,9 +189,24 @@ export interface DashboardPull {
   author: string;
 }
 
+export interface DashboardIssue {
+  provider: "gitea" | "github";
+  owner: string;
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+  author: string;
+  labels: string[];
+}
+
 export interface Dashboard {
   authored: DashboardPull[];
   reviewRequests: DashboardPull[];
+  /** Open issues assigned to the user. */
+  issues: DashboardIssue[];
   errors: string[];
 }
 
