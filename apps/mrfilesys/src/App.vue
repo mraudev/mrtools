@@ -14,6 +14,7 @@ import TitleBar from "./components/TitleBar.vue";
 import Toolbar from "./components/Toolbar.vue";
 import Dialog from "@mrtools/ui/components/Dialog";
 import Toaster from "@mrtools/ui/components/Toaster";
+import UpdateBar from "@mrtools/ui/components/UpdateBar";
 import {
   copyPaths,
   copyToClipboard,
@@ -31,6 +32,7 @@ import { initTransfer } from "./lib/transfer";
 import { baseName } from "./lib/paths";
 import { goBack, goForward, goUp, initStore, refresh, selectAll, selectedEntries, settings, state } from "./lib/store";
 import "@mrtools/ui/lib/theme";
+import { startUpdateChecks } from "@mrtools/ui/lib/updater";
 
 const toolbar = ref<InstanceType<typeof Toolbar>>();
 
@@ -89,6 +91,7 @@ onMounted(() => {
   initExternalDrop();
   initDeletion();
   initTransfer();
+  startUpdateChecks();
 });
 
 onUnmounted(() => {
@@ -101,6 +104,7 @@ onUnmounted(() => {
   <TooltipProvider :delay-duration="400" :skip-delay-duration="200">
     <div class="flex h-full flex-col">
       <TitleBar />
+      <UpdateBar />
       <Toolbar ref="toolbar" />
       <main class="flex min-h-0 flex-1">
         <div class="w-56 shrink-0 border-r border-border bg-card">

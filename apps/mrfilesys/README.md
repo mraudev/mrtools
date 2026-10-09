@@ -33,6 +33,8 @@ Dateien und Ordner durchsuchen und verwalten – ähnlich wie der Windows-Explor
   Aus dem Fenster heraus in Explorer, Desktop oder andere Apps ziehen, und Dateien von dort hineinziehen
 - Ordner werden beim Zurückkehren ins Fenster neu eingelesen
 - Dunkles/helles Design
+- **Automatische Updates**: Prüfung beim Start und alle 4 Stunden, stiller Download, danach „Neu starten“
+  oder Installation beim Beenden
 
 ## Tastatur
 

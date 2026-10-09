@@ -12,10 +12,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@mrtools/ui": "*",
     "@lucide/vue": "^1.51.0",
+    "@mrtools/ui": "*",
     "@tauri-apps/api": "^2.12.1",
     "@tauri-apps/plugin-opener": "^2.7.0",
+    "@tauri-apps/plugin-updater": "^2.13.1",
     "reka-ui": "^2.10.5",
     "vue": "^3.5.43"
   },
