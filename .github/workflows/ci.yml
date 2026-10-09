@@ -55,3 +55,6 @@ jobs:
 
       - name: Rust-Tests mrstart
         run: cargo test --locked -p mrstart
+
+      - name: Rust-Tests mrphone
+        run: cargo test --locked -p mrphone

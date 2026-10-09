@@ -9,6 +9,7 @@ und reka-ui, Aufbau und Aussehen wie [mrstart](apps/mrstart).
 | [mrprocs](apps/mrprocs)            | Zeigt alle laufenden Prozesse             | 1440     |
 | [mrdiskspace](apps/mrdiskspace)    | Zeigt, wo der Plattenplatz bleibt         | 1450     |
 | [mrstart](apps/mrstart)            | Desktop-Launcher für Entwicklungsprojekte | 1420     |
+| [mrphone](apps/mrphone)            | SIP-Softphone (Umzug aus Electron, im Aufbau) | –    |
 
 Jede App hat ihre eigene Version (in `apps/<app>/package.json`) und eigene Releases.
 

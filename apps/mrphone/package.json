@@ -1,0 +1,18 @@
+{
+  "name": "mrphone",
+  "private": true,
+  "version": "1.26.0",
+  "description": "SIP-Softphone",
+  "author": "Michael Rau <dev@mraudev.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mraudev/mrtools.git"
+  },
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.1"
+  }
+}
