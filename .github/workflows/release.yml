@@ -4,10 +4,11 @@ name: Release
 # dieser einen App und veröffentlicht ihn als GitHub-Release. Tags anlegen mit
 # `npm run release -- <app> <patch|minor|major>`.
 #
-# mrstart hat einen Auto-Updater: seine Update-Pakete werden signiert, und die
-# `latest.json` landet zusätzlich im festen Release `mrstart-latest`, das
+# Apps mit Auto-Updater (`bundle.createUpdaterArtifacts` in tauri.conf.json,
+# derzeit mrstart und mrtools): ihre Update-Pakete werden signiert, und die
+# `latest.json` landet zusätzlich im festen Release `<app>-latest`, das
 # installierte Versionen unter
-# https://github.com/mraudev/mrtools/releases/download/mrstart-latest/latest.json
+# https://github.com/mraudev/mrtools/releases/download/<app>-latest/latest.json
 # abfragen.
 on:
   push:
@@ -45,8 +46,10 @@ jobs:
             echo "::error::Tag $GITHUB_REF_NAME passt nicht zur Version $version in apps/$app/package.json"
             exit 1
           fi
+          updater=$(node -p "require('./apps/$app/src-tauri/tauri.conf.json').bundle.createUpdaterArtifacts === true")
           echo "name=$app" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "updater=$updater" >> "$GITHUB_OUTPUT"
 
       # Commits seit dem letzten Release dieser App, die sie oder packages/ui betreffen.
       - name: Release-Notizen aus den Commits
@@ -76,12 +79,12 @@ jobs:
       # --ignore-scripts: keine Install-Skripte aus Abhängigkeiten ausführen.
       - run: npm ci --ignore-scripts
 
-      # Nur dieser Schritt sieht den Signaturschlüssel, und nur beim Release von mrstart.
+      # Nur dieser Schritt sieht den Signaturschlüssel, und nur bei Apps mit Auto-Updater.
       - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.app.outputs.name == 'mrstart' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.app.outputs.name == 'mrstart' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.app.outputs.updater == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.app.outputs.updater == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         with:
           projectPath: apps/${{ steps.app.outputs.name }}
           tagName: ${{ github.ref_name }}
@@ -91,18 +94,19 @@ jobs:
           prerelease: false
 
       # Feste Adresse für den Auto-Updater: `latest.json` des neuen Releases in
-      # das Release `mrstart-latest` kopieren. Es ist als Vorabversion markiert,
+      # das Release `<app>-latest` kopieren. Es ist als Vorabversion markiert,
       # damit es nie als „Latest“ erscheint.
-      - name: Update-Kanal von mrstart aktualisieren
-        if: steps.app.outputs.name == 'mrstart'
+      - name: Update-Kanal aktualisieren
+        if: steps.app.outputs.updater == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APP: ${{ steps.app.outputs.name }}
         run: |
           gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern latest.json --dir update
-          if ! gh release view mrstart-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release create mrstart-latest --repo "$GITHUB_REPOSITORY" --prerelease --target main \
-              --title "mrstart – Update-Kanal" \
-              --notes "Enthält nur die latest.json für den Auto-Updater von mrstart. Die Installer liegen in den Releases mrstart-vX.Y.Z."
+          if ! gh release view "$APP-latest" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$APP-latest" --repo "$GITHUB_REPOSITORY" --prerelease --target main \
+              --title "$APP – Update-Kanal" \
+              --notes "Enthält nur die latest.json für den Auto-Updater von $APP. Die Installer liegen in den Releases $APP-vX.Y.Z."
           fi
-          gh release upload mrstart-latest update/latest.json --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload "$APP-latest" update/latest.json --repo "$GITHUB_REPOSITORY" --clobber
