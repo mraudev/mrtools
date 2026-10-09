@@ -2,7 +2,12 @@
 ; still entfernt. Ihre Daten in %APPDATA%\SIP Phone bleiben – diese Version benutzt sie direkt weiter
 ; (src-tauri/src/paths.rs). Der Uninstall-Schlüssel ist aus ihrer App-ID de.rau.sipphone abgeleitet und
 ; fest; sie läuft per Benutzer. Läuft die alte App noch, beendet ihr Deinstaller sie selbst.
+;
+; Der Umstieg kann auch über den Updater der Electron-Version laufen (Brücken-Release v2.1.1 in
+; mraudev/sipphone): Er startet diesen Installer still mit "--updated /S --force-run". Dann startet
+; NSIS_HOOK_POSTINSTALL die neue Version, wie es der Electron-Installer nach einem Update getan hätte.
 !define ELECTRON_UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\bbbb2b48-a2e1-5e29-8a75-0784954697a7"
+Var FromElectron ; 1, wenn dieser Lauf die Electron-Version entfernt hat
 
 !macro NSIS_HOOK_PREINSTALL
   Push $R0
@@ -33,6 +38,7 @@
         RMDir "$R3"
         ; Eintrag sicher weg, sonst hielte diese Version die alte noch für installiert
         DeleteRegKey HKCU "${ELECTRON_UNINSTALL_KEY}"
+        StrCpy $FromElectron 1
       ${Else}
         DetailPrint "Die bisherige Version konnte nicht entfernt werden (Code $R2) – bitte später selbst deinstallieren."
       ${EndIf}
@@ -42,4 +48,16 @@
   Pop $R2
   Pop $R1
   Pop $R0
+!macroend
+
+!macro NSIS_HOOK_POSTINSTALL
+  ${If} $FromElectron = 1
+    Push $R0
+    ClearErrors
+    ${GetOptions} $CMDLINE "--force-run" $R0
+    ${IfNot} ${Errors}
+      Exec '"$INSTDIR\${MAINBINARYNAME}.exe"'
+    ${EndIf}
+    Pop $R0
+  ${EndIf}
 !macroend
