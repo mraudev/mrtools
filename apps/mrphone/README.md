@@ -18,7 +18,11 @@ src-tauri/src/
   paths.rs         Datenordner
   phone.rs         mehrere SIP-Konten; eigener Thread mit einer Ereignisschleife
   sip/msg.rs       SIP-Nachrichten lesen/schreiben
-  sip/ua.rs        Benutzeragent: Anmeldung, Digest, Übernahme-Erkennung, Besetztlampenfeld
+  sip/ua.rs        Benutzeragent: Anmeldung, Digest, Übernahme-Erkennung, Besetztlampenfeld, Gespräche
+                   (ein-/ausgehend, Halten, Weiterleiten mit/ohne Rückfrage, Tastentöne)
+  sip/sdp.rs       Codec-Aushandlung (Opus, G.722, G.711, telephone-event)
+  sip/rtp.rs       Sprachstrom: im Mikrofontakt senden, RFC-4733-Tastentöne, Jitter/Verlust, RTCP
+  sip/g722.rs      G.722-Codec (bitgenau wie die Electron-Version); Opus über libopus (Crate opus)
   logger.rs        Protokoll sipphone.log im Datenordner
 ```
 
@@ -31,8 +35,8 @@ AudioWorklet) läuft weiter in der WebView (WebView2 = Chromium).
 | --- | --- | --- |
 | 0 | Machbarkeit: Audio in WebView2, binäre IPC im 20-ms-Takt, Electron-Passwörter, Windows-Meldungen mit Knöpfen, WebHID | erledigt |
 | 1 | Brücke, Einstellungen, Konten, Kontakte, Verlauf, Kurzwahl, Klingelton | erledigt |
-| 2 | SIP-Anmeldung (mehrere Konten, Übernahme, BLF) | erledigt – Anrufe bekommen bis Stufe 3 „besetzt“ |
-| 3 | Gespräche (RTP, Opus/G.722/G.711, DTMF, Halten, Weiterleiten) | offen |
+| 2 | SIP-Anmeldung (mehrere Konten, Übernahme, BLF) | erledigt |
+| 3 | Gespräche (RTP, Opus/G.722/G.711, DTMF, Halten, Weiterleiten) | erledigt – Fenster in den Vordergrund und Windows-Meldung bei Anrufen folgen in Stufe 5 |
 | 4 | CTI, Sicherung, Importe/Exporte | offen |
 | 5 | Tray, Meldungen, Bildschirmsperre, Headset, Titelleiste, Protokoll | offen |
 | 6 | Signierte Updates, Umstieg aus der Electron-Version | offen |
@@ -46,7 +50,7 @@ Electron-App bleibt unberührt. `MRPHONE_DATA_DIR` setzt einen anderen Ordner (S
 Auf der Testkopie startet die Telefonie **vorsichtig**: Ist das Konto schon an einem anderen Gerät angemeldet
 (z. B. der installierten Electron-App), zeigt mrphone „An anderem Gerät“ und meldet sich erst nach
 *Übernehmen* an. Für Selbsttests: `MRPHONE_CAUTIOUS=0/1`, `MRPHONE_SIP_BIND=127.0.0.1` (nur lokal lauschen,
-keine Firewall-Abfrage), `SIP_TRACE=1` (SIP-Mitschnitt im Protokoll).
+keine Firewall-Abfrage), `SIP_TRACE=1` (SIP-Mitschnitt im Protokoll), `MRPHONE_MUTE=1` (Fenster stumm).
 
 ## Entwicklung
 
@@ -54,3 +58,8 @@ keine Firewall-Abfrage), `SIP_TRACE=1` (SIP-Mitschnitt im Protokoll).
 npm run tauri build -w apps/mrphone    # Installer nach target/release/bundle/nsis
 cargo test -p mrphone
 ```
+
+Opus kommt aus libopus und wird beim ersten Build per CMake übersetzt (`.cargo/config.toml` setzt dafür
+`CMAKE_POLICY_VERSION_MINIMUM`). Mit Visual Studio 2026 und einem älteren CMake im PATH kennt CMake den
+Generator noch nicht – dann `CMAKE` auf das CMake von Visual Studio setzen, z. B.
+`C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe`.

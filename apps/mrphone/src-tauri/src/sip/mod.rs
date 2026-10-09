@@ -1,3 +1,6 @@
-// SIP-Stack (UDP), Stufe 2: Anmeldung und Besetztlampenfeld. Gespräche folgen in Stufe 3.
+// SIP-Stack (UDP): Anmeldung, Besetztlampenfeld, Gespräche mit RTP.
+pub mod g722;
 pub mod msg;
+pub mod rtp;
+pub mod sdp;
 pub mod ua;

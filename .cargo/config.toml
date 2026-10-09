@@ -1,0 +1,4 @@
+[env]
+# mrphone baut libopus (Opus-Codec) per CMake. CMake 4 lehnt dessen alte Mindestversion ab –
+# diese Ausnahme ist der offizielle Weg dafür. Betrifft nur Pakete, die CMake benutzen.
+CMAKE_POLICY_VERSION_MINIMUM = "3.5"

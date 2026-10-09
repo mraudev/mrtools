@@ -56,6 +56,13 @@ fn allow_microphone_only(window: &tauri::WebviewWindow) -> tauri::Result<()> {
             })),
             &mut token,
         );
+        // Selbsttests: Fenster stumm (kein Klingelton/Gesprächston aus den echten Lautsprechern).
+        if std::env::var("MRPHONE_MUTE").as_deref() == Ok("1") {
+            use windows_core::Interface;
+            if let Ok(core8) = core.cast::<ICoreWebView2_8>() {
+                let _ = core8.SetIsMuted(true);
+            }
+        }
     })
 }
 
@@ -87,7 +94,16 @@ pub fn run() {
                 .iter()
                 .filter_map(|f| f["number"].as_str().map(String::from))
                 .collect();
-            let phone = phone::start(app.handle().clone(), accounts, favorites, cautious);
+            let phone = phone::start(
+                app.handle().clone(),
+                phone::Setup {
+                    accounts,
+                    favorites,
+                    cautious,
+                    hd_voice: cfg["hdVoice"].as_bool().unwrap_or(true),
+                },
+                std::sync::Arc::new(commands::AppHooks(app.handle().clone())),
+            );
             app.manage(AppState {
                 phone,
                 contacts: Mutex::new(contacts::Contacts::load(&dir)),
@@ -110,6 +126,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
             commands::command,
+            commands::audio_in,
+            commands::audio_subscribe,
             commands::not_yet,
             commands::get_audio,
             commands::set_audio,

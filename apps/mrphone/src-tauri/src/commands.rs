@@ -110,15 +110,77 @@ pub fn get_state(state: State<'_, AppState>) -> Value {
     state.phone.snapshot.lock().unwrap().clone()
 }
 
+// Befehle aus der Oberfläche (wie runCommand in src/main.js).
 #[tauri::command]
-pub fn command(state: State<'_, AppState>, msg: Value) -> Value {
-    match msg["type"].as_str() {
-        // „Neu verbinden“ / „Übernehmen“: alle Konten anmelden, auch ruhende
-        Some("register") => {
-            state.phone.send(PhoneCmd::Register);
-            Value::Null
+pub async fn command(state: State<'_, AppState>, msg: Value) -> Result<Value, ()> {
+    let target = text(&msg["target"]);
+    let phone = &state.phone;
+    match msg["type"].as_str().unwrap_or("") {
+        "dial" => {
+            let account = msg["accountId"].as_str().map(String::from);
+            if let Err(err) = phone.dial(target, account).await {
+                return Ok(error(err));
+            }
         }
-        _ => error("Telefonieren kommt in Stufe 3 der Tauri-Version."),
+        "answer" => phone.send(PhoneCmd::Answer),
+        "reject" => phone.send(PhoneCmd::Reject),
+        "hangup" => phone.send(PhoneCmd::Hangup),
+        "dtmf" => phone.send(PhoneCmd::Dtmf(text(&msg["digit"]))),
+        "hold" => phone.send(PhoneCmd::Hold(msg["on"].as_bool().unwrap_or(false))),
+        "transfer" => phone.send(PhoneCmd::Transfer(target)),
+        "attendedTransfer" => phone.send(PhoneCmd::AttendedTransfer(target)),
+        "completeTransfer" => phone.send(PhoneCmd::CompleteTransfer),
+        "cancelConsult" => phone.send(PhoneCmd::CancelConsult),
+        // „Neu verbinden“ / „Übernehmen“: alle Konten anmelden, auch ruhende
+        "register" => phone.send(PhoneCmd::Register),
+        _ => {}
+    }
+    Ok(Value::Null)
+}
+
+// Mikrofon-Audio aus der Oberfläche: Int16 (Little Endian) als Binärpaket.
+#[tauri::command]
+pub fn audio_in(state: State<'_, AppState>, request: tauri::ipc::Request<'_>) {
+    if let tauri::ipc::InvokeBody::Raw(bytes) = request.body() {
+        let pcm = bytes
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|b| i16::from_le_bytes(*b))
+            .collect();
+        state.phone.send(PhoneCmd::Audio(pcm));
+    }
+}
+
+// Sprache der Gegenstelle zur Oberfläche: ein binärer Kanal für die ganze Laufzeit.
+#[tauri::command]
+pub fn audio_subscribe(
+    state: State<'_, AppState>,
+    channel: tauri::ipc::Channel<tauri::ipc::InvokeResponseBody>,
+) {
+    *state.phone.audio_out.lock().unwrap() = Some(channel);
+}
+
+// Verbindung SIP-Thread -> App: Namen aus dem Telefonbuch, Verlaufseinträge nach Gesprächsende.
+pub struct AppHooks(pub AppHandle);
+
+impl crate::phone::Hooks for AppHooks {
+    fn contact_name(&self, uri: &str) -> Option<String> {
+        self.0
+            .try_state::<AppState>()?
+            .contacts
+            .lock()
+            .unwrap()
+            .lookup(uri)
+    }
+
+    fn call_ended(&self, reason: &str, call: Value) {
+        let Some(state) = self.0.try_state::<AppState>() else {
+            return;
+        };
+        let _ = self.0.emit("phone:ended", reason);
+        let _ = state.history.lock().unwrap().add(reason, &call);
+        let _ = self.0.emit("phone:historyChanged", history_view(&state));
     }
 }
 
@@ -156,6 +218,9 @@ pub fn set_options(app: AppHandle, state: State<'_, AppState>, options: Value) {
         if let Some(b) = options[k].as_bool() {
             cfg[k] = json!(b);
         }
+    }
+    if let Some(hd) = options["hdVoice"].as_bool() {
+        state.phone.send(PhoneCmd::SetHd(hd));
     }
     if let Some(theme) = options["theme"]
         .as_str()
