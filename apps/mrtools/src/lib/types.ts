@@ -6,28 +6,20 @@ export interface Installed {
 }
 
 export interface App {
+  /** Folder under `apps/`, also the prefix of the release tags. */
   folder: string;
-  path: string;
+  /** Product name, as shown in Windows' installed apps. */
   name: string;
   description: string | null;
-  /** Version in the source folder. */
-  version: string | null;
-  /** `owner/repo` on github.com. */
-  github: string | null;
-  /** Folder inside the repository (apps in a monorepo). */
-  repoPath: string | null;
-  /** Prefix of this app's release tags (apps in a monorepo), e.g. `mrprocs-v`. */
-  tagPrefix: string | null;
-  /** Logo as data URL. */
+  /** Logo as SVG source. */
   icon: string | null;
   installed: Installed | null;
 }
 
 export interface Release {
-  tag_name: string;
-  html_url: string;
-  published_at: string | null;
+  version: string;
+  url: string;
+  publishedAt: string | null;
+  /** Size of the installer in bytes, `null` if the release has none. */
+  installerSize: number | null;
 }
-
-/** `undefined` = still loading, `null` = no release. */
-export type ReleaseState = Release | null | undefined | { error: string };

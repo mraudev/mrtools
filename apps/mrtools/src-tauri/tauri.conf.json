@@ -32,7 +32,7 @@
     "active": true,
     "targets": ["nsis"],
     "publisher": "Michael Rau",
-    "shortDescription": "Übersicht und Starter für die eigenen Apps",
+    "shortDescription": "Installiert, aktualisiert und startet die mrtools-Apps",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
-import { FolderCog, RefreshCw, Search, X } from "@lucide/vue";
+import { RefreshCw, Search, X } from "@lucide/vue";
 import logo from "@/assets/logo.svg";
 import Tip from "@mrtools/ui/components/Tip";
 import WindowControls from "@mrtools/ui/components/WindowControls";
-import { chooseRoot } from "@/lib/actions";
 import { refresh, state } from "@/lib/store";
 
 const search = ref<HTMLInputElement>();
@@ -65,12 +64,9 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
     <div class="min-w-6 flex-1" data-tauri-drag-region />
 
     <div class="flex items-center gap-1 pr-2">
-      <Tip :text="`Ordner mit den Apps wählen\n${state.root}`" side="bottom">
-        <button class="icon-btn" aria-label="Ordner wählen" @click="chooseRoot"><FolderCog /></button>
-      </Tip>
       <Tip text="Aktualisieren (F5)" side="bottom">
-        <button class="icon-btn" aria-label="Aktualisieren" :disabled="state.loading" @click="refresh">
-          <RefreshCw :class="state.loading && 'animate-spin'" />
+        <button class="icon-btn" aria-label="Aktualisieren" :disabled="state.releasesLoading" @click="refresh">
+          <RefreshCw :class="state.releasesLoading && 'animate-spin'" />
         </button>
       </Tip>
     </div>

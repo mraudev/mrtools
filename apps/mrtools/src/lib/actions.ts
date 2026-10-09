@@ -1,8 +1,7 @@
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { api } from "./api";
-import { setRoot, state } from "./store";
 import { toast, toastError } from "@mrtools/ui/lib/toast";
+import { api } from "./api";
+import { loadInstalled, state } from "./store";
 import type { App } from "./types";
 
 export async function launchApp(app: App) {
@@ -14,11 +13,18 @@ export async function launchApp(app: App) {
   }
 }
 
-export async function openFolder(path: string) {
+/** Installs or updates `app` from its latest release. */
+export async function installApp(app: App, update: boolean) {
+  if (state.installing.has(app.folder)) return;
+  state.installing.add(app.folder);
   try {
-    await api.openFolder(path);
+    await api.install(app.folder);
+    await loadInstalled();
+    toast("success", `${app.name} ${update ? "aktualisiert" : "installiert"}`);
   } catch (e) {
-    toastError("Ordner ließ sich nicht öffnen", e);
+    toastError(`${app.name} ließ sich nicht ${update ? "aktualisieren" : "installieren"}`, e);
+  } finally {
+    state.installing.delete(app.folder);
   }
 }
 
@@ -29,9 +35,4 @@ export async function openGithub(url: string) {
   } catch (e) {
     toastError("Link ließ sich nicht öffnen", e);
   }
-}
-
-export async function chooseRoot() {
-  const folder = await openDialog({ directory: true, defaultPath: state.root, title: "Ordner mit den Apps wählen" });
-  if (typeof folder === "string") await setRoot(folder);
 }

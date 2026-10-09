@@ -6,10 +6,10 @@ import AppsView from "./components/AppsView.vue";
 import StatusBar from "./components/StatusBar.vue";
 import TitleBar from "./components/TitleBar.vue";
 import Toaster from "@mrtools/ui/components/Toaster";
-import { initStore, state } from "./lib/store";
+import { refresh, state } from "./lib/store";
 import "@mrtools/ui/lib/theme";
 
-onMounted(initStore);
+onMounted(refresh);
 </script>
 
 <template>

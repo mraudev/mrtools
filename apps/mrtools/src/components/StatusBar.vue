@@ -2,14 +2,19 @@
 import { computed, onMounted, ref } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
 import ThemeToggle from "@mrtools/ui/components/ThemeToggle";
-import Tip from "@mrtools/ui/components/Tip";
-import { openFolder } from "@/lib/actions";
 import { state, visibleApps } from "@/lib/store";
+import { appStatus } from "@/lib/version";
 
 const version = ref("");
 onMounted(async () => (version.value = await getVersion()));
 
 const installed = computed(() => state.apps.filter((a) => a.installed).length);
+const updates = computed(
+  () =>
+    state.apps.filter(
+      (a) => a.installed && appStatus(a.installed.version, state.releases[a.folder]?.version ?? null).kind === "outdated",
+    ).length,
+);
 </script>
 
 <template>
@@ -18,11 +23,9 @@ const installed = computed(() => state.apps.filter((a) => a.installed).length);
       {{ state.apps.length }} Apps<template v-if="state.query"> · {{ visibleApps.length }} angezeigt</template>
     </span>
     <span class="tabular-nums">{{ installed }} installiert</span>
-    <Tip text="Ordner im Explorer öffnen">
-      <button class="min-w-0 truncate font-mono hover:text-foreground" @click="openFolder(state.root)">
-        {{ state.root }}
-      </button>
-    </Tip>
+    <span v-if="updates" class="rounded bg-accent/15 px-1.5 font-medium text-accent-text tabular-nums">
+      {{ updates }} {{ updates === 1 ? "Update" : "Updates" }} verfügbar
+    </span>
     <div class="flex-1" />
 
     <ThemeToggle />

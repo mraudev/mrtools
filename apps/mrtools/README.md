@@ -1,19 +1,18 @@
 # mrtools
 
-Übersicht und Starter für die eigenen Apps.
+Installiert, aktualisiert und startet die Apps aus diesem Repository.
 
 ## Funktionen
 
-- **Jeder Unterordner** des App-Ordners (Standard: der Ordner, in dem das `mrtools`-Repository liegt)
-  erscheint als Kachel mit Logo, Name und Beschreibung aus `package.json` bzw. `src-tauri/tauri.conf.json`
-- **Monorepos** (Ordner mit npm-Workspaces wie dieses Repository) werden aufgeklappt: jede Tauri-App darin
-  bekommt eine eigene Kachel, ihr Release wird über das Tag-Präfix `<app>-v` gefunden
-- **Versionen**: installiert (aus den Windows-Deinstallationseinträgen), Quelle (`package.json`) und
-  letztes **GitHub-Release**; Status *Aktuell*, *Update verfügbar* oder *Nicht installiert*
-- **Starten** installierter Apps, **GitHub-Link** (aus dem `origin`-Remote oder `repository` in
-  `package.json`), Ordner im Explorer öffnen
-- **Filter** (<kbd>Strg</kbd>+<kbd>F</kbd>), <kbd>F5</kbd> aktualisiert, App-Ordner wählbar
-- Dunkles/helles Design
+- **Alle Apps des Repositorys** (außer mrtools selbst) als Kacheln mit Logo, Name und Beschreibung. Die
+  Liste wird beim Bauen aus `apps/` übernommen – mrtools braucht keinen Quellcode auf der Platte.
+- **Versionen**: installiert (aus den Windows-Deinstallationseinträgen) und verfügbar (neuestes
+  GitHub-Release der App, Tag `<app>-v<version>`); Status *Aktuell*, *Update* oder *Nicht installiert*
+- **Installieren und Aktualisieren** mit einem Klick: lädt den Installer des neuesten Releases, prüft ihn
+  gegen die SHA-256-Prüfsumme von GitHub und führt ihn im passiven Modus aus (nur Fortschrittsbalken,
+  eine laufende Instanz der App wird dabei beendet)
+- **Starten** installierter Apps, Link zum Quellcode auf GitHub
+- **Filter** (<kbd>Strg</kbd>+<kbd>F</kbd>), <kbd>F5</kbd> aktualisiert, dunkles/helles Design
 
 ## Technik
 
@@ -22,11 +21,14 @@ Aussehen wie [mrstart](../mrstart).
 
 ```
 src/                  Vue-Frontend
-src-tauri/src/
-  apps.rs             Ordner scannen, package.json/tauri.conf.json/Git-Remote lesen
-  installed.rs        Installierte Apps aus der Registry, Starten
-  github.rs           Letztes Release (öffentliche GitHub-API, ohne Token)
+src-tauri/
+  build.rs            Katalog der Apps aus apps/ einbetten
+  src/catalog.rs      Katalog plus Installationsstatus
+  src/installed.rs    Installierte Apps aus der Registry, Starten
+  src/releases.rs     Releases (öffentliche GitHub-API, ohne Token), Installer laden, prüfen, ausführen
 ```
+
+Neue Apps erscheinen in mrtools, sobald mrtools neu gebaut und veröffentlicht wurde.
 
 Entwicklung, Tests und Release: siehe [README im Repository-Root](../../README.md)
 (`npm run tauri dev -w apps/mrtools`).

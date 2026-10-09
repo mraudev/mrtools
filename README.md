@@ -5,7 +5,7 @@ und reka-ui, Aufbau und Aussehen wie [mrstart](apps/mrstart).
 
 | App                                | Zweck                                     | Dev-Port |
 | ---------------------------------- | ----------------------------------------- | -------- |
-| [mrtools](apps/mrtools)            | Übersicht und Starter für die eigenen Apps | 1430     |
+| [mrtools](apps/mrtools)            | Installiert, aktualisiert und startet die Apps | 1430     |
 | [mrprocs](apps/mrprocs)            | Zeigt alle laufenden Prozesse             | 1440     |
 | [mrdiskspace](apps/mrdiskspace)    | Zeigt, wo der Plattenplatz bleibt         | 1450     |
 | [mrstart](apps/mrstart)            | Desktop-Launcher für Entwicklungsprojekte | 1420     |

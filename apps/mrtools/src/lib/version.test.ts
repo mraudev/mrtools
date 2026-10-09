@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appStatus, compareVersions, newest } from "./version";
+import { appStatus, compareVersions } from "./version";
 
 describe("compareVersions", () => {
   it("compares numerically", () => {
@@ -17,15 +17,9 @@ describe("compareVersions", () => {
 describe("appStatus", () => {
   it("detects missing, outdated and current installs", () => {
     expect(appStatus(undefined, "1.0.0")).toEqual({ kind: "missing" });
-    expect(appStatus("1.4.0", "1.7.0")).toEqual({ kind: "outdated", latest: "1.7.0" });
-    expect(appStatus("1.7.0", "1.7.0")).toEqual({ kind: "current", latest: "1.7.0" });
-    expect(appStatus(null, "1.7.0")).toEqual({ kind: "current", latest: "1.7.0" });
-  });
-});
-
-describe("newest", () => {
-  it("ignores missing versions and strips the v prefix", () => {
-    expect(newest("v1.7.0", null, "1.8.0", undefined)).toBe("1.8.0");
-    expect(newest(null, undefined)).toBeNull();
+    expect(appStatus("1.4.0", "1.8.0")).toEqual({ kind: "outdated", latest: "1.8.0" });
+    expect(appStatus("1.8.0", "1.8.0")).toEqual({ kind: "current", latest: "1.8.0" });
+    expect(appStatus("1.8.0", null)).toEqual({ kind: "current", latest: null });
+    expect(appStatus(null, "1.8.0")).toEqual({ kind: "current", latest: "1.8.0" });
   });
 });

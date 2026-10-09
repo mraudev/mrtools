@@ -24,17 +24,9 @@ export type Status =
   | { kind: "current"; latest: string | null }
   | { kind: "outdated"; latest: string };
 
-/** Installed version vs. the newest known one (release, else source). */
+/** Installed version (`undefined` = not installed) vs. the latest release. */
 export function appStatus(installed: string | null | undefined, latest: string | null): Status {
   if (installed === undefined) return { kind: "missing" };
   if (installed && latest && compareVersions(installed, latest) < 0) return { kind: "outdated", latest };
   return { kind: "current", latest };
-}
-
-/** The newest of the given versions. */
-export function newest(...versions: (string | null | undefined)[]): string | null {
-  return versions
-    .filter((v): v is string => !!v)
-    .map(cleanVersion)
-    .reduce<string | null>((max, v) => (!max || compareVersions(v, max) > 0 ? v : max), null);
 }

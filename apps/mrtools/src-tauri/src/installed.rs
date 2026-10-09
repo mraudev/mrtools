@@ -96,19 +96,6 @@ pub fn launch(name: String) -> Result<(), String> {
     command.spawn().map(drop).map_err(|e| format!("{}: {e}", exe.display()))
 }
 
-/// Opens an app folder in the Explorer.
-#[tauri::command]
-pub fn open_folder(path: String) -> Result<(), String> {
-    if !Path::new(&path).is_dir() {
-        return Err(format!("{path} ist kein Ordner."));
-    }
-    std::process::Command::new("explorer.exe")
-        .arg(&path)
-        .spawn()
-        .map(drop)
-        .map_err(|e| e.to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::clean_path;
