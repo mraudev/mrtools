@@ -37,12 +37,17 @@ pub fn json_indent1(value: &serde_json::Value) -> Vec<u8> {
 }
 
 // Mikrofon-Freigabe selbst beantworten (sonst fragt WebView2 nach) – nur das Mikrofon, alles andere nie.
+// Außerdem: kein Browser-Kontextmenü, für Selbsttests stumm.
 fn allow_microphone_only(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     window.with_webview(|wv| unsafe {
         use webview2_com::{Microsoft::Web::WebView2::Win32::*, PermissionRequestedEventHandler};
         let Ok(core) = wv.controller().CoreWebView2() else {
             return;
         };
+        // Kein Browser-Kontextmenü (Zurück, Drucken, Speichern unter …) – Electron zeigt auch keins.
+        if let Ok(settings) = core.Settings() {
+            let _ = settings.SetAreDefaultContextMenusEnabled(false);
+        }
         let mut token = Default::default();
         let _ = core.add_PermissionRequested(
             &PermissionRequestedEventHandler::create(Box::new(|_, args| {
@@ -127,15 +132,20 @@ pub fn run() {
                 backup_file: Mutex::new(None),
             });
             commands::sync_cti(app.handle());
-            let window =
+            let mut builder =
                 WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                     .title("mrphone")
                     .inner_size(400.0, 800.0)
                     .min_inner_size(360.0, 740.0)
                     // eigene Titelleiste: Kopfzeile der Oberfläche (app-region: drag), Knöpfe aus bridge.js
                     .decorations(false)
-                    .initialization_script(include_str!("bridge.js"))
-                    .build()?;
+                    .initialization_script(include_str!("bridge.js"));
+            // Selbsttests: eigenes WebView2-Profil, sonst hängen sie sich an eine laufende mrphone-Instanz
+            // (gleicher Profilordner) und berühren deren Freigaben.
+            if desktop::quiet() {
+                builder = builder.data_directory(dir.join("webview2"));
+            }
+            let window = builder.build()?;
             allow_microphone_only(&window)?;
             desktop::setup(app.handle(), &window, &dir)?;
             commands::apply_theme(app.handle(), &theme);
