@@ -1,0 +1,893 @@
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const { pathToFileURL } = require('url');
+const { app, BrowserWindow, ipcMain, protocol, net, session, nativeTheme, Menu, Tray, Notification, safeStorage, dialog, powerMonitor, shell } = require('electron');
+const { autoUpdater } = require('electron-updater');
+const logger = require('./logger');
+const { loadConfig, saveConfig, normalizeConfig, ACCOUNT_DEFAULTS, parsePhonerLite } = require('./config');
+const { Phone } = require('./phone');
+const { CallHistory } = require('./history');
+const { Contacts, normalizeNumber } = require('./contacts');
+const { importOutlookContacts } = require('./outlook');
+const { readContactsCsv } = require('./csvimport');
+const { contactsToCsv } = require('./csvexport');
+const { CtiClient } = require('./cti');
+const { encryptBackup, decryptBackup, MIN_PASSWORD } = require('./backup');
+
+const PUBLIC = path.join(__dirname, '..', 'public');
+const APP_ORIGIN = 'app://phone';
+const IS_WIN = process.platform === 'win32';
+const ICON_PNG = path.join(__dirname, '..', 'assets', 'icon.png');
+// Fenster/Tray: Windows nimmt das .ico (mehrere Größen), Linux kann nur PNG.
+const ICON = IS_WIN ? path.join(__dirname, '..', 'assets', 'icon.ico') : ICON_PNG;
+const REG_TEXT = { registered: 'Verbunden', registering: 'Verbinde …', unregistering: 'Melde ab …', unregistered: 'Abgemeldet', failed: 'Nicht verbunden', locked: 'Abgemeldet (PC gesperrt)', elsewhere: 'An anderem Gerät angemeldet' };
+
+// Eigenes Schema statt file://, damit AudioWorklet & Co. in einem sicheren Kontext laufen.
+protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
+// Gleiche ID wie build.appId in package.json -> Windows ordnet Fenster, Taskleiste und Benachrichtigungen
+// der Startmenü-Verknüpfung zu. Entwicklungsstarts bekommen eine eigene ID, sonst "kapert" electron.exe
+// die installierte App (falscher Name/Icon im Startmenü).
+app.setAppUserModelId(app.isPackaged ? 'de.rau.sipphone' : 'de.rau.sipphone.dev');
+// Datenordner bleibt "SIP Phone" (Name bis 1.25): dort liegen Konten, Kontakte, Verlauf und der Schlüssel
+// der verschlüsselten Zugangsdaten. Ohne das begänne mrphone mit einem leeren Ordner. Nur wenn der Ordner
+// nicht schon anders gesetzt ist und wirklich mrphone läuft (nie bei Selbsttests).
+if (app.getName() === 'mrphone' && app.getPath('userData') === path.join(app.getPath('appData'), 'mrphone')) {
+  app.setPath('userData', path.join(app.getPath('appData'), 'SIP Phone'));
+}
+
+let win = null;
+let tray = null;
+let cfg = null;
+let phone = null; // alle Konten (src/phone.js)
+let history = null;
+let contacts = null;
+const presence = {}; // Kurzwahl-Status je Nebenstelle (BLF): 'idle' | 'ringing' | 'busy' | 'unknown'
+const ctis = new Map(); // Konto-ID -> CtiClient (nur Konten mit eingetragenem CTI-Server)
+let ctiSendTimer = null;
+let flashing = false;
+let quitting = false;
+let stopped = false;
+let trayHintShown = false;
+let callToast = null;
+let updateReady = null; // Version eines heruntergeladenen Updates
+let updateNotes = ''; // Beschreibung des Updates (GitHub-Release-Text)
+let logFile = null;
+let screenLocked = false;
+let backupFile = null; // gewählte Sicherung, bis das Passwort eingegeben ist
+
+const UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
+const TITLEBAR_HEIGHT = 44; // eigene Titelleiste = Kopfzeile der Oberfläche (public/style.css .topbar)
+
+// Fenster-Knöpfe (Minimieren/Maximieren/Schließen) zeichnet Windows selbst – in den Farben der App.
+function titleBarOverlay() {
+  const dark = nativeTheme.shouldUseDarkColors;
+  // Durchsichtig: darunter liegt der Farbverlauf der Oberfläche, sonst entstünde eine Kante.
+  return { color: '#00000000', symbolColor: dark ? '#e8ecf3' : '#1a2332', height: TITLEBAR_HEIGHT };
+}
+
+function createWindow() {
+  win = new BrowserWindow({
+    width: 400,
+    height: 800,
+    minWidth: 360,
+    minHeight: 740,
+    title: 'mrphone',
+    icon: ICON,
+    backgroundColor: '#0d1117',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: titleBarOverlay(),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      sandbox: true,
+      autoplayPolicy: 'no-user-gesture-required',
+    },
+  });
+  win.loadURL('app://phone/index.html');
+  // WebHID: Headset (Telefonie-HID, z. B. Jabra) zur Rufannahme per Knopf zulassen. Die Geräteauswahl
+  // bei navigator.hid.requestDevice() beantwortet der Hauptprozess selbst – bevorzugt ein Jabra.
+  const ses = win.webContents.session;
+  ses.setDevicePermissionHandler((details) => details.deviceType === 'hid');
+  ses.on('select-hid-device', (event, details, callback) => {
+    event.preventDefault();
+    const list = details.deviceList || [];
+    const pick = list.find((d) => d.vendorId === 0x0b0e) || list.find((d) => /jabra/i.test(d.name || d.productName || '')) || list[0];
+    callback(pick ? pick.deviceId : undefined);
+  });
+  // Das Fenster zeigt nur die eigene Oberfläche: keine neuen Fenster, keine Navigation woandershin.
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.on('will-navigate', (e, url) => {
+    if (!url.startsWith(APP_ORIGIN)) e.preventDefault();
+  });
+  // Minimieren und Schließen legen die App ins Tray – sie bleibt erreichbar. Beenden über das Tray-Menü.
+  // Unter Linux zeigt nicht jeder Desktop ein Tray-Symbol (z. B. GNOME ohne AppIndicator-Erweiterung):
+  // dort bleibt Minimieren ein normales Minimieren, damit das Fenster nicht unauffindbar verschwindet.
+  if (IS_WIN) win.on('minimize', hideToTray);
+  win.on('close', (e) => {
+    if (quitting) return;
+    e.preventDefault();
+    hideToTray();
+  });
+  win.on('closed', () => (win = null));
+  // Hell/Dunkel gewechselt (Einstellung oder Windows): Fenster-Knöpfe mitfärben
+  const recolor = () => win && !win.isDestroyed() && win.setTitleBarOverlay(titleBarOverlay());
+  nativeTheme.on('updated', recolor);
+  win.on('closed', () => nativeTheme.removeListener('updated', recolor));
+}
+
+function createTray() {
+  tray = new Tray(ICON);
+  tray.setToolTip('mrphone');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Öffnen', click: showWindow },
+    { type: 'separator' },
+    { label: 'Beenden', click: () => app.quit() },
+  ]));
+  tray.on('click', showWindow);
+}
+
+function showWindow() {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+function hideToTray() {
+  win.hide();
+  if (trayHintShown) return;
+  trayHintShown = true;
+  if (IS_WIN) {
+    tray.displayBalloon({ icon: ICON_PNG, title: 'mrphone läuft weiter', content: 'Du bleibst erreichbar. Beenden über das Tray-Symbol.' });
+  } else if (Notification.isSupported()) {
+    // Tray-Sprechblasen gibt es nur unter Windows; ohne sichtbares Tray-Symbol holt ein erneuter Start das Fenster zurück.
+    new Notification({ title: 'mrphone läuft weiter', body: 'Du bleibst erreichbar. Wieder öffnen über das Tray-Symbol oder durch erneutes Starten.', icon: ICON_PNG }).show();
+  }
+}
+
+function connectionSummary(accounts) {
+  if (!accounts.length) return 'Kein Konto';
+  const registered = accounts.filter((a) => a.state === 'registered').length;
+  if (registered === accounts.length) return 'Verbunden';
+  if (registered) return `${registered} von ${accounts.length} verbunden`;
+  return accounts.length === 1 ? REG_TEXT[accounts[0].state] || accounts[0].state : 'Nicht verbunden';
+}
+
+function updateTray(s) {
+  if (!tray) return;
+  const dnd = [...ctis.values()].some((c) => c.own && c.own.dnd);
+  tray.setToolTip(`mrphone – ${s.call ? 'Im Gespräch' : connectionSummary(s.accounts)}${dnd ? ' · Nicht stören' : ''}`);
+}
+
+// Bei mehreren Konten steht in Benachrichtigungen, welches Konto gemeint ist.
+function accountHint(label) {
+  return phone.lines.length > 1 && label ? `\nfür ${label}` : '';
+}
+
+// Gesperrter PC = nicht am Platz: abmelden, damit ein vergessenes mrphone (z. B. im Büro) nicht die
+// Anmeldung eines anderen Geräts (Homeoffice) zurückholt. Ein laufendes Gespräch geht vor.
+function applyScreenLock() {
+  if (screenLocked && cfg.lockUnregister && !phone.call) phone.lock();
+}
+
+function send(channel, data) {
+  if (win && !win.isDestroyed()) win.webContents.send(channel, data);
+}
+
+// --- Telefonbuch: Namen aus dem Telefonbuch haben Vorrang vor dem Namen, den die Anlage schickt ---
+
+function withContactName(state) {
+  return state.call ? { ...state, call: { ...state.call, contactName: contacts.lookup(state.call.remoteUri) } } : state;
+}
+
+function historyView() {
+  return history.entries.map((e) => ({ ...e, contactName: contacts.lookup(e.remoteUri) }));
+}
+
+function contactsView() {
+  return contacts.entries.map((c) => ({ ...c, numbers: c.numbers.map((n) => ({ ...n, dial: normalizeNumber(n.number) })) }));
+}
+
+function contactsChanged() {
+  send('phone:contactsChanged', contactsView());
+  send('phone:historyChanged', historyView());
+  if (phone.call) phone.emitState();
+}
+
+function mergeImported(found, source) {
+  const result = contacts.merge(found, source);
+  contactsChanged();
+  return { ...result, found: found.length };
+}
+
+async function importOutlook() {
+  try {
+    const found = await importOutlookContacts();
+    if (!found.length) {
+      return { error: 'Im klassischen Outlook wurden keine Kontakte mit Telefonnummer gefunden. Liegen sie im neuen Outlook oder bei Outlook.com, dort als CSV exportieren und die Datei importieren.' };
+    }
+    return mergeImported(found, 'outlook');
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+async function importCsv() {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Kontakte-CSV wählen',
+    filters: [{ name: 'CSV-Dateien', extensions: ['csv', 'txt'] }],
+    properties: ['openFile'],
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  try {
+    const found = readContactsCsv(res.filePaths[0]);
+    if (!found.length) return { error: 'In der Datei wurden keine Kontakte mit Telefonnummer gefunden.' };
+    return mergeImported(found, 'csv');
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+async function exportCsv() {
+  const res = await dialog.showSaveDialog(win, {
+    title: 'Kontakte als CSV exportieren',
+    defaultPath: 'kontakte.csv',
+    filters: [{ name: 'CSV-Dateien', extensions: ['csv'] }],
+  });
+  if (res.canceled || !res.filePath) return null;
+  try {
+    // BOM voran, damit Excel Umlaute als UTF-8 erkennt.
+    fs.writeFileSync(res.filePath, '﻿' + contactsToCsv(contacts.entries), 'utf8');
+    return { count: contacts.entries.length };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+// Bei eingehendem Anruf Fenster hervorholen (auch aus dem Tray) und in der Taskleiste blinken lassen.
+function attention(call) {
+  if (!win) return;
+  const ringing = !!call && call.state === 'incoming';
+  if (ringing && !flashing) {
+    // Option: sonst reicht die Windows-Meldung mit Annehmen/Ablehnen, das Fenster bleibt, wo es ist
+    if (cfg.showOnCall) {
+      if (win.isMinimized()) win.restore();
+      win.showInactive();
+    }
+    win.flashFrame(true);
+    showCallToast(call);
+  } else if (!ringing && flashing) {
+    win.flashFrame(false);
+    closeCallToast();
+  }
+  flashing = ringing;
+}
+
+// Windows-Benachrichtigung mit Annehmen/Ablehnen; bleibt stehen, bis der Anruf angenommen oder beendet ist.
+function showCallToast(call) {
+  if (!Notification.isSupported()) return;
+  const number = call.remoteUri.replace(/^(sips?|tel):/i, '').split('@')[0];
+  const name = call.contactName || call.remoteName;
+  callToast = new Notification({
+    title: 'Eingehender Anruf',
+    body: (name ? `${name} (${number})` : number) + accountHint(call.accountLabel),
+    icon: ICON_PNG,
+    silent: true, // Klingelton spielt die App selbst auf dem gewählten Klingelgerät
+    timeoutType: 'never',
+    urgency: 'critical',
+    actions: [{ type: 'button', text: 'Annehmen' }, { type: 'button', text: 'Ablehnen' }],
+  });
+  callToast.on('action', (details, index) => {
+    const action = details && details.actionIndex !== undefined ? details.actionIndex : index;
+    if (action === 0) {
+      phone.answer();
+      if (cfg.showOnCall) showWindow(); // sonst bleibt das Fenster, wo es ist (Klick auf die Meldung öffnet es)
+    } else if (action === 1) {
+      phone.reject();
+    }
+  });
+  callToast.on('click', showWindow);
+  callToast.show();
+}
+
+function closeCallToast() {
+  if (!callToast) return;
+  callToast.close();
+  callToast = null;
+}
+
+function notifyMissed(entry) {
+  if (!Notification.isSupported() || (win && win.isVisible() && win.isFocused())) return;
+  const body = contacts.lookup(entry.remoteUri) || entry.remoteName || entry.remoteUri.replace(/^(sips?|tel):/i, '').split('@')[0];
+  const n = new Notification({ title: 'Verpasster Anruf', body: body + accountHint(entry.accountLabel), icon: ICON_PNG });
+  n.on('click', () => {
+    showWindow();
+    send('phone:showHistory');
+  });
+  n.show();
+}
+
+// --- CTI-Server (optional je Konto): Nicht stören, Abwesend, Status der Kurzwahl, Konferenzteilnehmer ---
+
+// Verbindungen passend zu den Konten starten/stoppen; neu verbunden wird nur bei geänderten Angaben.
+function syncCti() {
+  for (const [id, client] of ctis) {
+    const a = cfg.accounts.find((x) => x.id === id);
+    if (!a || !a.ctiHost || !a.ctiUser || a.ctiHost !== client.host || (Number(a.ctiPort) || 1337) !== client.port || a.ctiUser !== client.user) {
+      client.stop();
+      ctis.delete(id);
+    }
+  }
+  for (const a of cfg.accounts) {
+    if (!a.ctiHost || !a.ctiUser || ctis.has(a.id)) continue;
+    const client = new CtiClient({ host: a.ctiHost, port: a.ctiPort, user: a.ctiUser }, { label: a.label });
+    client.on('change', ctiChanged);
+    ctis.set(a.id, client);
+    client.start();
+  }
+  ctiChanged();
+}
+
+// Nach der Anmeldung kommt je Telefon ein Event -> gesammelt ans Fenster schicken.
+function ctiChanged() {
+  if (ctiSendTimer) return;
+  ctiSendTimer = setTimeout(() => {
+    ctiSendTimer = null;
+    send('phone:cti', ctiView());
+    if (phone) updateTray(phone.snapshot());
+  }, 50);
+}
+
+function ctiView() {
+  const favorites = new Set(cfg.favorites.map((f) => f.number));
+  const phones = {}; // nur die Kurzwahl-Nummern – die Anlage kennt oft Hunderte Telefone
+  const names = {}; // Nummer -> Name laut Anlage
+  let conference = null;
+  for (const client of ctis.values()) {
+    for (const p of client.phones.values()) {
+      if (p.number && p.name && !names[p.number]) names[p.number] = p.name;
+      if (favorites.has(p.number) && !phones[p.number]) phones[p.number] = { state: p.state, dnd: p.dnd, away: p.away };
+    }
+  }
+  for (const client of ctis.values()) {
+    const own = client.own;
+    const conf = client.conferences.values().next().value;
+    if (!conf || conference) continue;
+    conference = {
+      id: conf.id,
+      owner: !!own && conf.ownerDevice === own.id,
+      channels: [...conf.channels.values()].map((ch) => ({
+        id: ch.id,
+        number: ch.number,
+        name: contacts.lookup(ch.number) || names[ch.number] || '',
+        invited: ch.invited,
+        self: !!own && ch.number === own.number,
+      })),
+    };
+  }
+  return {
+    accounts: [...ctis].map(([id, c]) => ({
+      id,
+      status: c.status,
+      reason: c.reason,
+      dnd: c.own ? c.own.dnd : null,
+      away: c.own ? c.own.away : null,
+    })),
+    phones,
+    conference,
+  };
+}
+
+// Nicht stören / Abwesend: gilt für alle Konten, deren CTI-Server verbunden ist.
+function setCtiFlag(kind, on) {
+  const connected = [...ctis.values()].filter((c) => c.status === 'connected');
+  if (!connected.length) throw new Error('CTI-Server nicht verbunden');
+  for (const c of connected) {
+    if (kind === 'dnd') c.setDnd(on);
+    else c.setAway(on);
+  }
+}
+
+// Zugangsdaten: Passwort und HA1-Hash (aus Linphone) gelten beide als Passwort fürs SIP-Konto.
+const SECRET_FIELDS = ['password', 'ha1'];
+
+function encryptAccount(account) {
+  const stored = { ...account };
+  for (const field of SECRET_FIELDS) {
+    delete stored[`${field}Enc`];
+    if (!account[field]) continue;
+    stored[`${field}Enc`] = safeStorage.encryptString(account[field]).toString('base64');
+    stored[field] = '';
+  }
+  return stored;
+}
+
+// config.json schreiben; Zugangsdaten aller Konten nur verschlüsselt (Windows DPAPI), nie im Klartext.
+function persist() {
+  const stored = { ...cfg };
+  if (safeStorage.isEncryptionAvailable()) stored.accounts = cfg.accounts.map(encryptAccount);
+  saveConfig(stored);
+}
+
+// Verschlüsselte Zugangsdaten entschlüsseln; noch im Klartext gespeicherte (ältere Versionen,
+// frischer Linphone-Import) sofort verschlüsselt neu speichern.
+function loadSecrets() {
+  // Linux: Verschlüsselung über den Schlüsselbund des Desktops (GNOME Keyring/KWallet). Ohne ihn
+  // verschleiert Electron nur ("basic_text") – im Protokoll vermerken, config.json ist dann nur per
+  // Dateirechte (nur der Benutzer) geschützt.
+  if (process.platform === 'linux') {
+    const backend = typeof safeStorage.getSelectedStorageBackend === 'function' ? safeStorage.getSelectedStorageBackend() : 'unbekannt';
+    const available = safeStorage.isEncryptionAvailable();
+    console.log(`Zugangsdaten-Speicher: ${available ? backend : 'keine Verschlüsselung verfügbar'}`);
+    if (!available || backend === 'basic_text') console.warn('Kein Schlüsselbund gefunden – Zugangsdaten sind nur durch die Dateirechte von config.json geschützt');
+  }
+  if (!safeStorage.isEncryptionAvailable()) return;
+  let plaintext = false;
+  for (const account of cfg.accounts) {
+    for (const field of SECRET_FIELDS) {
+      const encrypted = account[`${field}Enc`];
+      if (encrypted) {
+        try {
+          account[field] = safeStorage.decryptString(Buffer.from(encrypted, 'base64'));
+        } catch (err) {
+          console.error(`${account.label}: ${field} konnte nicht entschlüsselt werden:`, err.message);
+        }
+      } else if (account[field]) {
+        plaintext = true;
+      }
+    }
+  }
+  if (plaintext) persist();
+}
+
+// Konten fürs Fenster – ohne Zugangsdaten.
+function accountsView() {
+  return cfg.accounts.map((a) => ({
+    id: a.id,
+    label: a.label,
+    displayName: a.displayName,
+    username: a.username,
+    domain: a.domain,
+    authUsername: a.authUsername,
+    proxy: a.proxy,
+    proxyPort: a.proxyPort,
+    ctiHost: a.ctiHost,
+    ctiPort: a.ctiPort,
+    ctiUser: a.ctiUser,
+    hasCredentials: !!(a.password || a.ha1),
+  }));
+}
+
+// Legt ein Konto an (ohne id) oder ändert ein bestehendes.
+async function saveAccount(data) {
+  const field = (name) => String(data[name] || '').trim();
+  const username = field('username');
+  const domain = field('domain');
+  if (!username || !domain) return { error: 'Benutzername und Server sind Pflichtfelder.' };
+  if (phone.call) return { error: 'Während eines Gesprächs nicht möglich.' };
+  const existing = cfg.accounts.find((a) => a.id === data.id);
+  const authUsername = field('authUsername');
+  const changes = {
+    label: field('label') || domain,
+    displayName: field('displayName'),
+    username,
+    domain,
+    authUsername,
+    proxy: field('proxy') || domain,
+    proxyPort: Number(field('proxyPort')) || 5060,
+    ctiHost: field('ctiHost'),
+    ctiPort: Number(field('ctiPort')) || 1337,
+    ctiUser: field('ctiUser'),
+  };
+  if (!changes.ctiHost !== !changes.ctiUser) return { error: 'Für den CTI-Server bitte Server und Anmeldename angeben (oder beides leer lassen).' };
+  const password = String(data.password || '');
+  if (password) {
+    Object.assign(changes, { password, ha1: '', realm: '' });
+  } else {
+    // Ohne neues Passwort nur, wenn es beim selben Benutzer bleibt und schon Zugangsdaten da sind.
+    const sameUser = existing && (authUsername || username) === (existing.authUsername || existing.username);
+    if (!sameUser || !(existing.password || existing.ha1)) return { error: 'Bitte das Passwort eingeben.' };
+  }
+  if (existing) {
+    await phone.updateAccount(existing.id, changes);
+  } else {
+    const account = { ...ACCOUNT_DEFAULTS, ...changes, id: crypto.randomUUID() };
+    cfg.accounts.push(account);
+    await phone.addAccount(account);
+  }
+  persist();
+  syncCti();
+  return { accounts: accountsView() };
+}
+
+async function deleteAccount(id) {
+  if (phone.call) return { error: 'Während eines Gesprächs nicht möglich.' };
+  await phone.removeAccount(id); // meldet vorher ab
+  cfg.accounts = cfg.accounts.filter((a) => a.id !== id);
+  persist();
+  syncCti();
+  return { accounts: accountsView() };
+}
+
+// PhonerLite-Konto aus einer gewählten sipper.ini vorbelegen (ohne Passwort – das ist verschlüsselt).
+async function importPhonerLite() {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'PhonerLite-Konfiguration (sipper.ini) wählen',
+    filters: [{ name: 'PhonerLite-Konfiguration', extensions: ['ini'] }],
+    properties: ['openFile'],
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  try {
+    const account = parsePhonerLite(fs.readFileSync(res.filePaths[0], 'utf8'));
+    if (!account) return { error: 'In der Datei wurde kein SIP-Konto gefunden.' };
+    return { account };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+// Eigener Klingelton: wird in den App-Ordner kopiert, damit er auch nach Verschieben des Originals klingelt.
+const RINGTONE_TYPES = ['wav', 'mp3', 'ogg', 'm4a', 'flac'];
+const RINGTONE_MAX_BYTES = 10 * 1024 * 1024;
+
+function ringtonePath() {
+  return cfg.ringtone ? path.join(app.getPath('userData'), cfg.ringtone.file) : null;
+}
+
+function resetRingtone() {
+  if (cfg.ringtone) fs.rmSync(ringtonePath(), { force: true });
+  cfg.ringtone = null;
+  persist();
+}
+
+async function chooseRingtone() {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Klingelton wählen',
+    filters: [{ name: 'Audiodateien', extensions: RINGTONE_TYPES }],
+    properties: ['openFile'],
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  const src = res.filePaths[0];
+  if (fs.statSync(src).size > RINGTONE_MAX_BYTES) return { error: 'Die Datei ist zu groß (max. 10 MB).' };
+  const file = `ringtone${path.extname(src).toLowerCase()}`;
+  const data = fs.readFileSync(src);
+  if (cfg.ringtone) fs.rmSync(ringtonePath(), { force: true });
+  fs.writeFileSync(path.join(app.getPath('userData'), file), data);
+  cfg.ringtone = { file, name: path.basename(src) };
+  persist();
+  return { name: cfg.ringtone.name };
+}
+
+function ringtoneData() {
+  if (!cfg.ringtone) return null;
+  try {
+    return { name: cfg.ringtone.name, data: fs.readFileSync(ringtonePath()) };
+  } catch {
+    return null;
+  }
+}
+
+// --- Sicherung: alles verschlüsselt exportieren und auf einem anderen mrphone wieder einspielen ---
+
+// .sipphone: Sicherungen von vor der Umbenennung (gleiches Format)
+const BACKUP_FILTERS = [{ name: 'mrphone-Sicherung', extensions: ['mrphone', 'sipphone'] }];
+
+async function exportBackup(password) {
+  if (String(password || '').length < MIN_PASSWORD) return { error: `Das Passwort braucht mindestens ${MIN_PASSWORD} Zeichen.` };
+  const res = await dialog.showSaveDialog(win, {
+    title: 'Sicherung speichern',
+    defaultPath: `mrphone-Sicherung-${new Date().toISOString().slice(0, 10)}.mrphone`,
+    filters: BACKUP_FILTERS,
+  });
+  if (res.canceled || !res.filePath) return null;
+  try {
+    const { audio, ...settings } = cfg; // Audiogeräte heißen auf jedem PC anders -> bleiben außen vor
+    const ringtone = ringtoneData();
+    const payload = {
+      app: 'mrphone',
+      version: app.getVersion(),
+      createdAt: new Date().toISOString(),
+      // Zugangsdaten im Klartext – geschützt durch die Verschlüsselung der Sicherung. Die DPAPI-Felder
+      // (*Enc) taugen auf einem anderen PC nicht.
+      config: { ...settings, accounts: cfg.accounts.map(({ passwordEnc, ha1Enc, ...a }) => a) },
+      contacts: contacts.entries,
+      history: history.entries,
+      ringtone: ringtone ? { name: ringtone.name, ext: path.extname(cfg.ringtone.file).slice(1), data: ringtone.data.toString('base64') } : null,
+    };
+    fs.writeFileSync(res.filePath, await encryptBackup(payload, password));
+    console.log(`Sicherung exportiert: Konten ${cfg.accounts.length}, Kontakte ${contacts.entries.length}, Verlaufseinträge ${history.entries.length}`);
+    return { file: path.basename(res.filePath) };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+async function chooseBackup() {
+  const res = await dialog.showOpenDialog(win, { title: 'Sicherung wählen', filters: BACKUP_FILTERS, properties: ['openFile'] });
+  if (res.canceled || !res.filePaths.length) return null;
+  backupFile = res.filePaths[0];
+  return { file: path.basename(backupFile) };
+}
+
+// Ersetzt Konten, Kontakte, Kurzwahl, Verlauf und Einstellungen durch die Sicherung (Audiogeräte bleiben).
+async function importBackup(password) {
+  if (!backupFile) return { error: 'Bitte zuerst eine Sicherung wählen.' };
+  if (phone.call) return { error: 'Während eines Gesprächs nicht möglich.' };
+  let data;
+  try {
+    data = await decryptBackup(fs.readFileSync(backupFile), password);
+  } catch (err) {
+    return { error: err.message };
+  }
+  if (!data || !data.config || !Array.isArray(data.config.accounts)) return { error: 'Die Sicherung ist unvollständig.' };
+  backupFile = null;
+
+  for (const id of phone.lines.map((l) => l.account.id)) await phone.removeAccount(id); // meldet ab
+  const next = normalizeConfig({ ...data.config, audio: cfg.audio });
+  if (cfg.ringtone) fs.rmSync(ringtonePath(), { force: true });
+  next.ringtone = null;
+  const rt = data.ringtone;
+  if (rt && RINGTONE_TYPES.includes(rt.ext) && typeof rt.data === 'string') {
+    const buf = Buffer.from(rt.data, 'base64');
+    if (buf.length <= RINGTONE_MAX_BYTES) {
+      const file = `ringtone.${rt.ext}`;
+      fs.writeFileSync(path.join(app.getPath('userData'), file), buf);
+      next.ringtone = { file, name: String(rt.name || file) };
+    }
+  }
+  cfg = next;
+  persist(); // Zugangsdaten auf diesem PC wieder per DPAPI verschlüsselt
+
+  contacts.entries = (Array.isArray(data.contacts) ? data.contacts : [])
+    .filter((c) => c && typeof c.name === 'string' && Array.isArray(c.numbers))
+    .map((c) => ({
+      id: String(c.id || crypto.randomUUID()),
+      name: c.name,
+      company: String(c.company || ''),
+      numbers: c.numbers.filter(Boolean).map((n) => ({ label: String(n.label || ''), number: String(n.number || '') })),
+      source: String(c.source || 'sicherung'),
+    }));
+  contacts.save();
+  history.entries = (Array.isArray(data.history) ? data.history : []).filter((e) => e && typeof e.remoteUri === 'string').slice(0, 200);
+  history.save();
+
+  for (const ext of Object.keys(presence)) delete presence[ext];
+  nativeTheme.themeSource = ['light', 'dark', 'system'].includes(cfg.theme) ? cfg.theme : 'system';
+  phone.setHdVoice(cfg.hdVoice);
+  for (const account of cfg.accounts) await phone.addAccount(account);
+  phone.setFavorites(cfg.favorites.map((f) => f.number));
+  syncCti();
+  console.log(`Sicherung importiert: Konten ${cfg.accounts.length}, Kontakte ${contacts.entries.length}, Verlaufseinträge ${history.entries.length}`);
+  return { accounts: cfg.accounts.length, contacts: contacts.entries.length };
+}
+
+// Updates kommen aus den GitHub-Releases (build.publish in package.json). Nur in der installierten App.
+function setupUpdater() {
+  if (!app.isPackaged) return;
+  // Linux: nur das AppImage aktualisiert sich selbst. Das .deb würde beim Beenden nach dem Admin-
+  // Passwort fragen – dort wird die neue Version per Paketinstallation eingespielt.
+  if (process.platform === 'linux' && !process.env.APPIMAGE) {
+    console.log('Automatische Updates nur für das AppImage (installiertes .deb: neue Version per Paket einspielen)');
+    return;
+  }
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('update-available', (info) => console.log(`Update ${info.version} verfügbar, lade herunter …`));
+  autoUpdater.on('update-not-available', () => console.log('Kein Update verfügbar'));
+  autoUpdater.on('update-downloaded', async (info) => {
+    updateReady = info.version;
+    updateNotes = await fetchReleaseNotes(info.version).catch(() => '');
+    console.log(`Update ${info.version} bereit`);
+    send('phone:update', { version: updateReady, notes: updateNotes });
+  });
+  autoUpdater.on('error', (err) => console.error('Update-Fehler:', err.message));
+  const check = () => autoUpdater.checkForUpdates().catch(() => {}); // Fehler meldet das 'error'-Event
+  check();
+  setInterval(check, UPDATE_INTERVAL_MS);
+}
+
+// Beschreibung des Releases (der „Body“ auf der GitHub-Release-Seite) für die aufklappbaren Details.
+function fetchReleaseNotes(version) {
+  return new Promise((resolve, reject) => {
+    const req = net.request({ url: `https://api.github.com/repos/mraudev/sipphone/releases/tags/v${version}`, headers: { 'User-Agent': 'sipphone', Accept: 'application/vnd.github+json' } });
+    req.on('response', (res) => {
+      let body = '';
+      res.on('data', (c) => (body += c));
+      res.on('end', () => {
+        try {
+          resolve(String(JSON.parse(body).body || '').trim());
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+async function installUpdate() {
+  if (!updateReady) return null;
+  if (phone.call) return { error: 'Bitte erst das Gespräch beenden.' };
+  quitting = true;
+  await phone.stop(); // sauber abmelden, bevor der Installer die App beendet
+  stopped = true;
+  autoUpdater.quitAndInstall(true, true); // still installieren, danach neu starten
+  return null;
+}
+
+async function runCommand(msg) {
+  try {
+    if (msg.type === 'dial') await phone.dial(String(msg.target || ''), msg.accountId);
+    else if (msg.type === 'answer') phone.answer();
+    else if (msg.type === 'hangup') phone.hangup();
+    else if (msg.type === 'dtmf') phone.sendDtmf(String(msg.digit || ''));
+    else if (msg.type === 'hold') phone.hold(!!msg.on);
+    else if (msg.type === 'transfer') phone.transfer(String(msg.target || ''));
+    else if (msg.type === 'attendedTransfer') phone.attendedTransfer(String(msg.target || ''));
+    else if (msg.type === 'completeTransfer') phone.completeTransfer();
+    else if (msg.type === 'cancelConsult') phone.cancelConsult();
+    else if (msg.type === 'register') {
+      await phone.register();
+      for (const c of ctis.values()) c.retry();
+    } else if (msg.type === 'dnd' || msg.type === 'away') setCtiFlag(msg.type, !!msg.on);
+    return null;
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', showWindow);
+
+  app.whenReady().then(async () => {
+    logFile = logger.setup(app.getPath('userData'));
+    console.log(`mrphone ${app.getVersion()} gestartet`);
+    nativeTheme.themeSource = 'system';
+    Menu.setApplicationMenu(null);
+    protocol.handle('app', (req) => {
+      const file = path.join(PUBLIC, path.normalize(decodeURIComponent(new URL(req.url).pathname)));
+      if (!file.startsWith(PUBLIC + path.sep)) return new Response('Forbidden', { status: 403 });
+      return net.fetch(pathToFileURL(file).toString());
+    });
+    // Mikrofon nur für die eigene Oberfläche, alle anderen Berechtigungen nie.
+    session.defaultSession.setPermissionRequestHandler((_wc, permission, cb, details) => {
+      cb(permission === 'media' && String(details && details.requestingUrl).startsWith(APP_ORIGIN));
+    });
+    session.defaultSession.setPermissionCheckHandler((_wc, permission, origin) => permission === 'media' && String(origin).startsWith(APP_ORIGIN));
+
+    cfg = normalizeConfig(loadConfig(app.getPath('userData')));
+    nativeTheme.themeSource = ['light', 'dark', 'system'].includes(cfg.theme) ? cfg.theme : 'system';
+    loadSecrets();
+    history = new CallHistory(app.getPath('userData'));
+    contacts = new Contacts(app.getPath('userData'));
+    phone = new Phone(cfg.accounts);
+    phone.setHdVoice(cfg.hdVoice);
+    phone.on('format', (fmt) => send('phone:audioFormat', fmt));
+    phone.on('state', (raw) => {
+      const s = withContactName(raw);
+      send('phone:state', s);
+      attention(s.call);
+      updateTray(s);
+    });
+    phone.on('ended', (reason, call) => {
+      send('phone:ended', reason);
+      const entry = history.add(reason, call);
+      send('phone:historyChanged', historyView());
+      if (entry.status === 'missed') notifyMissed(entry);
+      applyScreenLock();
+    });
+    powerMonitor.on('lock-screen', () => {
+      screenLocked = true;
+      applyScreenLock();
+    });
+    powerMonitor.on('unlock-screen', () => {
+      screenLocked = false;
+      phone.unlock();
+    });
+    phone.on('audio', (pcm) => send('phone:audio', pcm));
+    phone.on('info', (text) => send('phone:info', text));
+    phone.on('presence', ({ ext, state }) => {
+      presence[ext] = state;
+      send('phone:presence', { ext, state });
+    });
+
+    ipcMain.handle('phone:state', () => withContactName(phone.snapshot()));
+    ipcMain.handle('phone:command', (_e, msg) => runCommand(msg));
+    ipcMain.on('phone:audio', (_e, pcm) => phone.pushAudio(pcm));
+    ipcMain.handle('phone:getAudio', () => cfg.audio);
+    ipcMain.handle('phone:setAudio', (_e, audio) => {
+      cfg.audio = { ...cfg.audio, ...audio };
+      persist();
+    });
+    ipcMain.handle('phone:getOptions', () => ({ lockUnregister: cfg.lockUnregister, showOnCall: cfg.showOnCall, micProcessing: cfg.micProcessing, hdVoice: cfg.hdVoice, ringOnHeadset: cfg.ringOnHeadset, headsetAnswer: cfg.headsetAnswer, ringtonePreset: cfg.ringtonePreset, theme: cfg.theme }));
+    ipcMain.handle('phone:setOptions', (_e, options) => {
+      for (const key of ['lockUnregister', 'showOnCall', 'micProcessing', 'hdVoice', 'ringOnHeadset', 'headsetAnswer']) {
+        if (typeof options[key] === 'boolean') cfg[key] = options[key];
+      }
+      if (typeof options.hdVoice === 'boolean') phone.setHdVoice(options.hdVoice);
+      if (['light', 'dark', 'system'].includes(options.theme)) {
+        cfg.theme = options.theme;
+        nativeTheme.themeSource = options.theme;
+      }
+      // Welche Töne es gibt, weiß nur die Oberfläche (RINGTONES) – hier nur das Format prüfen.
+      if (typeof options.ringtonePreset === 'string' && /^[a-z]{1,20}$/.test(options.ringtonePreset)) cfg.ringtonePreset = options.ringtonePreset;
+      persist();
+    });
+    ipcMain.handle('phone:accounts', () => accountsView());
+    ipcMain.handle('phone:saveAccount', (_e, data) => saveAccount(data));
+    ipcMain.handle('phone:deleteAccount', (_e, id) => deleteAccount(id));
+    ipcMain.handle('phone:importPhonerLite', () => importPhonerLite());
+    ipcMain.handle('phone:getRingtone', () => ringtoneData());
+    ipcMain.handle('phone:chooseRingtone', () => chooseRingtone());
+    ipcMain.handle('phone:resetRingtone', () => resetRingtone());
+    ipcMain.handle('phone:version', () => app.getVersion());
+    ipcMain.handle('phone:openLog', () => shell.showItemInFolder(logFile));
+    ipcMain.on('phone:log', (_e, text) => console.warn('[Headset]', String(text).slice(0, 300))); // nur Fehler
+    ipcMain.handle('phone:getUpdate', () => (updateReady ? { version: updateReady, notes: updateNotes } : null));
+    ipcMain.handle('phone:installUpdate', () => installUpdate());
+    ipcMain.handle('phone:history', () => historyView());
+    ipcMain.handle('phone:clearHistory', () => {
+      history.clear();
+      send('phone:historyChanged', historyView());
+    });
+    ipcMain.handle('phone:contacts', () => contactsView());
+    ipcMain.handle('phone:saveContact', (_e, data) => {
+      try {
+        const contact = contacts.upsert(data);
+        contactsChanged();
+        // Mit vorhandenem Kontakt gleichen Namens zusammengeführt: der Oberfläche Bescheid geben
+        return contact.merged !== undefined ? { merged: contact.name, added: contact.merged } : null;
+      } catch (err) {
+        return { error: err.message };
+      }
+    });
+    ipcMain.handle('phone:deleteContact', (_e, id) => {
+      contacts.remove(id);
+      contactsChanged();
+    });
+    ipcMain.handle('phone:importOutlook', () => importOutlook());
+    ipcMain.handle('phone:importCsv', () => importCsv());
+    ipcMain.handle('phone:exportCsv', () => exportCsv());
+    ipcMain.handle('phone:exportBackup', (_e, password) => exportBackup(password));
+    ipcMain.handle('phone:chooseBackup', () => chooseBackup());
+    ipcMain.handle('phone:importBackup', (_e, password) => importBackup(password));
+    ipcMain.handle('phone:favorites', () => ({ list: cfg.favorites, presence }));
+    ipcMain.handle('phone:cti', () => ctiView());
+    ipcMain.handle('phone:saveFavorites', (_e, list) => {
+      cfg.favorites = (Array.isArray(list) ? list : [])
+        .map((f) => ({ name: String(f.name || '').trim(), number: String(f.number || '').trim() }))
+        .filter((f) => f.number);
+      persist();
+      for (const ext of Object.keys(presence)) if (!cfg.favorites.some((f) => f.number === ext)) delete presence[ext];
+      phone.setFavorites(cfg.favorites.map((f) => f.number));
+      ctiChanged();
+      return { list: cfg.favorites };
+    });
+
+    createTray();
+    createWindow();
+    await phone.start();
+    phone.setFavorites(cfg.favorites.map((f) => f.number));
+    syncCti();
+    setupUpdater();
+  });
+
+  // Vor dem Beenden sauber beim Server abmelden.
+  app.on('before-quit', (e) => {
+    quitting = true;
+    for (const c of ctis.values()) c.stop();
+    if (stopped || !phone) return;
+    e.preventDefault();
+    phone.stop().finally(() => {
+      stopped = true;
+      app.quit();
+    });
+  });
+  app.on('window-all-closed', () => app.quit());
+  process.on('SIGINT', () => app.quit());
+}
