@@ -39,12 +39,15 @@ pub enum PhoneCmd {
     CancelConsult,
     Audio(Vec<i16>),
     SetHd(bool),
+    Lock,   // PC gesperrt: Anmeldung ruhen lassen (nur die eigene abmelden)
+    Unlock, // PC entsperrt: wieder anmelden
     Stop(oneshot::Sender<()>),
 }
 
 // Was der SIP-Thread von der App braucht: Namen aus dem Telefonbuch und Verlaufseinträge.
 pub trait Hooks: Send + Sync {
     fn contact_name(&self, uri: &str) -> Option<String>;
+    fn state_changed(&self, snapshot: &Value);
     fn call_ended(&self, reason: &str, call: Value);
 }
 
@@ -153,6 +156,7 @@ async fn run(
             });
             let s = json!({ "accounts": accounts, "call": call });
             *snapshot.lock().unwrap() = s.clone();
+            hooks.state_changed(&s);
             let _ = app.emit("phone:state", s);
         })
     };
@@ -300,6 +304,20 @@ async fn run(
             PhoneCmd::SetHd(on) => {
                 *hd_voice.borrow_mut() = on;
                 lines.borrow().iter().for_each(|u| u.set_hd_voice(on));
+            }
+            PhoneCmd::Lock => {
+                let all = lines.borrow().clone();
+                for ua in all {
+                    tokio::task::spawn_local(async move { ua.standby("locked").await });
+                }
+            }
+            PhoneCmd::Unlock => {
+                let all = lines.borrow().clone();
+                for ua in all {
+                    if ua.standby_reason().as_deref() == Some("locked") {
+                        tokio::task::spawn_local(async move { ua.resume().await });
+                    }
+                }
             }
             PhoneCmd::Stop(done) => {
                 let all: Vec<Ua> = lines.borrow().clone();

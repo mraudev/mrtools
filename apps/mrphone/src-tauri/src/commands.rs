@@ -225,7 +225,18 @@ fn cti_changed(app: &AppHandle) {
         let state = app.state::<AppState>();
         state.cti_pending.store(false, Ordering::SeqCst);
         let _ = app.emit("phone:cti", cti_view(&state));
+        crate::desktop::update_tray(&app);
     });
+}
+
+// Nicht stören an einem der verbundenen CTI-Server (für den Tray-Text).
+pub fn own_dnd(state: &AppState) -> bool {
+    state
+        .cti
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|(_, c)| c.state.lock().unwrap().own().is_some_and(|o| o.dnd))
 }
 
 fn cti_view(state: &AppState) -> Value {
@@ -307,13 +318,20 @@ impl crate::phone::Hooks for AppHooks {
             .lookup(uri)
     }
 
+    fn state_changed(&self, snapshot: &Value) {
+        crate::desktop::on_state(&self.0, snapshot);
+    }
+
     fn call_ended(&self, reason: &str, call: Value) {
         let Some(state) = self.0.try_state::<AppState>() else {
             return;
         };
         let _ = self.0.emit("phone:ended", reason);
-        let _ = state.history.lock().unwrap().add(reason, &call);
+        let entry = state.history.lock().unwrap().add(reason, &call);
         let _ = self.0.emit("phone:historyChanged", history_view(&state));
+        if let Some(entry) = entry.ok().filter(|e| e["status"] == "missed") {
+            crate::desktop::notify_missed(&self.0, &entry);
+        }
     }
 }
 
@@ -561,12 +579,21 @@ pub fn get_version() -> String {
     format!("{} (Tauri-Test)", env!("CARGO_PKG_VERSION"))
 }
 
-// Bis es ein eigenes Protokoll gibt (Stufe 5): den Datenordner im Explorer öffnen.
+// Protokoll im Explorer zeigen (Datei markiert), damit man es weitergeben kann.
 #[tauri::command]
-pub fn open_data_dir(state: State<'_, AppState>) {
+pub fn open_log(state: State<'_, AppState>) {
+    use std::os::windows::process::CommandExt;
+    let file = state.dir.join("sipphone.log");
     let _ = std::process::Command::new("explorer")
-        .arg(&state.dir)
+        .raw_arg(format!("/select,\"{}\"", file.display()))
         .spawn();
+}
+
+// Fehler der Headset-Anbindung (WebHID in der Oberfläche) ins Protokoll.
+#[tauri::command]
+pub fn log_headset(text: String) {
+    let text: String = text.chars().take(300).collect();
+    crate::logger::warn(&format!("[Headset] {text}"));
 }
 
 // --- Telefonbuch, Verlauf, Kurzwahl ---

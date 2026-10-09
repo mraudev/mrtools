@@ -908,6 +908,25 @@ impl Ua {
         self.register(0, false).await;
     }
 
+    // Anmeldung ruhen lassen, bis resume(): "locked" = PC gesperrt ("elsewhere" setzt register() selbst).
+    pub async fn standby(&self, reason: &str) {
+        self.0.borrow_mut().standby = Some(reason.into());
+        self.stop_watch();
+        let timer = self.0.borrow_mut().reg_timer.take();
+        if let Some(t) = timer {
+            t.abort();
+        }
+        let _ = tokio::time::timeout(Duration::from_secs(2), self.unregister()).await;
+        let still = self.0.borrow().standby.as_deref() == Some(reason);
+        if still {
+            self.set_reg(reason, "");
+        }
+    }
+
+    pub fn standby_reason(&self) -> Option<String> {
+        self.0.borrow().standby.clone()
+    }
+
     pub async fn resume(&self) {
         self.0.borrow_mut().standby = None;
         let exp = self.expires();

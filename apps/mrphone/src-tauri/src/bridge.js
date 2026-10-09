@@ -45,8 +45,10 @@
     chooseRingtone: () => invoke('choose_ringtone'),
     resetRingtone: () => invoke('reset_ringtone'),
     getVersion: () => invoke('get_version'),
-    openLog: () => invoke('open_data_dir'),
-    logHeadset: () => {},
+    openLog: () => invoke('open_log'),
+    logHeadset: (text) => {
+      invoke('log_headset', { text: String(text) }).catch(() => {});
+    },
     getUpdate: () => Promise.resolve(null),
     installUpdate: () => Promise.resolve(null),
     onUpdate: () => {},
@@ -75,4 +77,45 @@
     onAudioFormat: (cb) => on('phone:audioFormat', cb),
     onInfo: (cb) => on('phone:info', cb),
   };
+
+  // Eigene Titelleiste: Die Kopfzeile der Oberfläche zieht das Fenster (app-region: drag, wie in der
+  // Electron-Version). Die Fenster-Knöpfe zeichnet in Electron Windows selbst – hier diese Brücke, an
+  // derselben Stelle und im Stil von Windows 11 (Minimieren und Schließen legen die App ins Tray).
+  const GLYPHS = { minimize: '', maximize: '', restore: '', close: '' };
+  const addWindowControls = () => {
+    const style = document.createElement('style');
+    style.textContent = `
+      html .topbar { margin-right: 122px; }
+      .window-controls { position: fixed; top: 0; right: 0; z-index: 10; display: flex; height: 44px; -webkit-app-region: no-drag; }
+      .window-controls button { width: 46px; height: 100%; border: 0; border-radius: 0; padding: 0; margin: 0; background: transparent;
+        color: var(--text); font: 10px 'Segoe Fluent Icons', 'Segoe MDL2 Assets'; cursor: default; }
+      .window-controls button:hover { background: var(--overlay); }
+      .window-controls button:active { background: var(--overlay-strong); }
+      .window-controls button.close:hover { background: #c42b1c; color: #fff; }
+      .window-controls button.close:active { background: #c84031; color: #fff; }`;
+    document.head.append(style);
+    const bar = document.createElement('div');
+    bar.className = 'window-controls';
+    const button = (action, label) => {
+      const b = document.createElement('button');
+      b.className = action;
+      b.title = label;
+      b.setAttribute('aria-label', label);
+      b.textContent = GLYPHS[action];
+      b.onclick = async () => setMaximized(await invoke('window_control', { action }));
+      return b;
+    };
+    const max = button('maximize', 'Maximieren');
+    const setMaximized = (on) => {
+      max.textContent = on ? GLYPHS.restore : GLYPHS.maximize;
+      max.title = on ? 'Verkleinern' : 'Maximieren';
+      max.setAttribute('aria-label', max.title);
+    };
+    bar.append(button('minimize', 'Minimieren'), max, button('close', 'Schließen'));
+    document.body.append(bar);
+    // Maximieren per Doppelklick auf die Titelleiste oder Windows-Taste: Symbol nachziehen
+    window.addEventListener('resize', async () => setMaximized(await invoke('window_maximized')));
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addWindowControls);
+  else addWindowControls();
 })();

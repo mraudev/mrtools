@@ -2456,6 +2456,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "tauri-plugin-single-instance",
  "tokio",
  "uuid",
  "webview2-com",

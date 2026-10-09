@@ -28,6 +28,8 @@ src-tauri/src/
   backup.rs        verschlüsselte Sicherung (scrypt + AES-256-GCM), in beide Richtungen kompatibel zur
                    Electron-Version (testdata/electron-backup.mrphone stammt von deren backup.js)
   imports.rs       Kontakte: CSV-Import (Outlook-Exporte, UTF-8/ANSI), CSV-Export, klassisches Outlook per COM
+  desktop.rs       Windows: Tray, Meldungen (Anruf mit Annehmen/Ablehnen, verpasster Anruf), Fenster
+                   hervorholen, Abmelden bei gesperrtem PC, Fensterknöpfe der eigenen Titelleiste
   logger.rs        Protokoll sipphone.log im Datenordner
 ```
 
@@ -43,7 +45,7 @@ AudioWorklet) läuft weiter in der WebView (WebView2 = Chromium).
 | 2 | SIP-Anmeldung (mehrere Konten, Übernahme, BLF) | erledigt |
 | 3 | Gespräche (RTP, Opus/G.722/G.711, DTMF, Halten, Weiterleiten) | erledigt – Fenster in den Vordergrund und Windows-Meldung bei Anrufen folgen in Stufe 5 |
 | 4 | CTI, Sicherung, Importe/Exporte (CSV, Outlook, PhonerLite) | erledigt |
-| 5 | Tray, Meldungen, Bildschirmsperre, Headset, Titelleiste, Protokoll | offen |
+| 5 | Tray, Meldungen, Bildschirmsperre, Headset, Titelleiste, Protokoll | erledigt |
 | 6 | Signierte Updates, Umstieg aus der Electron-Version | offen |
 
 ## Daten
@@ -54,7 +56,8 @@ Electron-App bleibt unberührt. `MRPHONE_DATA_DIR` setzt einen anderen Ordner (S
 
 Auf der Testkopie startet die Telefonie **vorsichtig**: Ist das Konto schon an einem anderen Gerät angemeldet
 (z. B. der installierten Electron-App), zeigt mrphone „An anderem Gerät“ und meldet sich erst nach
-*Übernehmen* an. Für Selbsttests: `MRPHONE_CAUTIOUS=0/1`, `MRPHONE_SIP_BIND=127.0.0.1` (nur lokal lauschen,
+*Übernehmen* an. Ist `MRPHONE_DATA_DIR` gesetzt (Selbsttests), zeigt mrphone keine Windows-Meldungen, holt das Fenster nicht
+hervor und läuft auch neben einer anderen Instanz – Meldungen stehen dann nur im Protokoll. Für Selbsttests: `MRPHONE_CAUTIOUS=0/1`, `MRPHONE_SIP_BIND=127.0.0.1` (nur lokal lauschen,
 keine Firewall-Abfrage), `SIP_TRACE=1` (SIP-Mitschnitt im Protokoll), `MRPHONE_MUTE=1` (Fenster stumm).
 
 ## Entwicklung

@@ -1,10 +1,11 @@
-// mrphone – Tauri-Version (im Aufbau; Stufe 4: Telefonie, CTI, Sicherung, Importe).
+// mrphone – Tauri-Version (im Aufbau; Stufe 5: zusätzlich Tray, Meldungen, Bildschirmsperre, Titelleiste).
 // Die Oberfläche (public/) ist dieselbe wie in der Electron-Version; bridge.js stellt window.phone bereit.
 mod backup;
 mod commands;
 mod config;
 mod contacts;
 mod cti;
+mod desktop;
 mod history;
 mod imports;
 mod logger;
@@ -71,7 +72,14 @@ fn allow_microphone_only(window: &tauri::WebviewWindow) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    // Zweiter Start holt das laufende Fenster hervor (nicht bei Selbsttests – die laufen neben der App).
+    if !desktop::quiet() {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            desktop::show_window(app)
+        }));
+    }
+    builder
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let (dir, test_copy) = paths::data_dir()?;
@@ -113,7 +121,7 @@ pub fn run() {
                 history: Mutex::new(history::History::load(&dir)),
                 cfg: Mutex::new(cfg),
                 crypt,
-                dir,
+                dir: dir.clone(),
                 cti: Mutex::new(Vec::new()),
                 cti_pending: AtomicBool::new(false),
                 backup_file: Mutex::new(None),
@@ -124,9 +132,12 @@ pub fn run() {
                     .title("mrphone")
                     .inner_size(400.0, 800.0)
                     .min_inner_size(360.0, 740.0)
+                    // eigene Titelleiste: Kopfzeile der Oberfläche (app-region: drag), Knöpfe aus bridge.js
+                    .decorations(false)
                     .initialization_script(include_str!("bridge.js"))
                     .build()?;
             allow_microphone_only(&window)?;
+            desktop::setup(app.handle(), &window, &dir)?;
             commands::apply_theme(app.handle(), &theme);
             Ok(())
         })
@@ -147,7 +158,10 @@ pub fn run() {
             commands::choose_ringtone,
             commands::reset_ringtone,
             commands::get_version,
-            commands::open_data_dir,
+            commands::open_log,
+            commands::log_headset,
+            desktop::window_control,
+            desktop::window_maximized,
             commands::get_contacts,
             commands::save_contact,
             commands::delete_contact,
