@@ -22,7 +22,8 @@ npm-Workspaces und hat im Release-Workflow einen eigenen Linux-Job.
 ```
 apps/<app>/           eine Tauri-App (Frontend in src/, Rust in src-tauri/)
 packages/ui/          gemeinsame Oberfläche: Styles (theme.css), Tip, Dialog, Toaster,
-                      Segmented, WindowControls, ThemeToggle, Design und Toasts
+                      Segmented, WindowControls, ThemeToggle, UpdateBar, Design, Toasts
+                      und Auto-Update
 scripts/release.mjs   Version erhöhen und Release-Tag setzen
 package.json          npm-Workspaces (ein node_modules für alles)
 Cargo.toml            Cargo-Workspace (ein target/ für alle Apps)
@@ -79,10 +80,14 @@ die `apps/mrprocs` oder `packages/ui` betreffen. mrtools findet das Release übe
 
 Der Release-Job läuft im Environment `release` (*Settings → Environments*, nur Tags `*-v*` erlaubt).
 
-**Auto-Update:** mrstart und mrtools aktualisieren sich selbst (`bundle.createUpdaterArtifacts` in ihrer
-`tauri.conf.json`). Weil sich alle Apps die „Latest“-Release des Repositorys teilen, fragt jede dieser Apps
+**Auto-Update:** Alle Apps aktualisieren sich selbst (`bundle.createUpdaterArtifacts` in ihrer
+`tauri.conf.json`). mrtools, mrprocs und mrdiskspace nutzen dafür `@mrtools/ui/lib/updater` und die Leiste
+`UpdateBar` (Prüfung beim Start und alle 4 Stunden, stiller Download, „Neu starten“ oder Installation beim
+Beenden); mrstart hat seinen eigenen Update-Dialog. Weil sich alle Apps die „Latest“-Release des Repositorys teilen, fragt jede dieser Apps
 eine feste Adresse ab: das Release `<app>-latest`, in das der Workflow nach jedem Release der App die
 `latest.json` kopiert. Die Update-Pakete werden mit dem Schlüssel aus den Secrets des Environments signiert
 (ein Schlüssel für alle Apps) – Einzelheiten in [apps/mrstart/README.md](apps/mrstart/README.md). Für eine
-weitere App: `createUpdaterArtifacts` und `plugins.updater` (gleicher `pubkey`, Endpoint
-`…/releases/download/<app>-latest/latest.json`) wie in mrtools eintragen.
+neue App: Updater-Plugin, die Rechte `updater:default` und `core:window:allow-destroy`,
+`createUpdaterArtifacts` und `plugins.updater` (gleicher `pubkey`, Endpoint
+`…/releases/download/<app>-latest/latest.json`) wie in mrprocs eintragen, dann `UpdateBar` und
+`startUpdateChecks()` in `App.vue`.

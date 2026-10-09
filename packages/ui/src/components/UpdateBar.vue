@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { CircleArrowUp, LoaderCircle, RotateCw } from "@lucide/vue";
-import { installNow, updater } from "@/lib/updater";
+import { installNow, updater } from "../lib/updater";
 
 const showNotes = ref(false);
 </script>

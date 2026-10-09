@@ -1,12 +1,15 @@
 import { reactive } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { check, type Update } from "@tauri-apps/plugin-updater";
-import { toastError } from "@mrtools/ui/lib/toast";
+import { toastError } from "./toast";
 
 /**
  * Automatic updates like in mrphone: check at startup and every 4 hours,
- * download a found update silently, then offer "Neu starten" – or install it
- * when mrtools is closed.
+ * download a found update silently, then offer "Neu starten" (`UpdateBar`) –
+ * or install it when the app is closed.
+ *
+ * The app needs the updater plugin, `updater:default` and
+ * `core:window:allow-destroy`, and `plugins.updater` in its tauri.conf.json.
  */
 export const updater = reactive({
   /** Version of the downloaded update, ready to install. */
@@ -38,7 +41,7 @@ async function checkForUpdate() {
   }
 }
 
-/** Installs the downloaded update; the installer closes mrtools and starts it again. */
+/** Installs the downloaded update; the installer closes the app and starts it again. */
 export async function installNow() {
   if (!pending || updater.installing) return;
   updater.installing = true;
@@ -58,7 +61,7 @@ export function startUpdateChecks() {
   checkForUpdate();
   setInterval(checkForUpdate, FOUR_HOURS);
 
-  // Not restarted yet: install when mrtools is closed, without starting it again.
+  // Not restarted yet: install when the app is closed, without starting it again.
   const appWindow = getCurrentWindow();
   appWindow.onCloseRequested(async (event) => {
     if (!pending) return;

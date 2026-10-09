@@ -14,6 +14,8 @@ Zeigt, wo der Plattenplatz bleibt – ähnlich wie TreeSize.
 - Kontextmenü: im Explorer zeigen, Pfad kopieren, Ordner einzeln scannen
 - Nicht lesbare Ordner (fehlende Rechte) werden markiert und gezählt
 - Dunkles/helles Design
+- **Automatische Updates**: Prüfung beim Start und alle 4 Stunden, stiller Download, danach „Neu starten“
+  oder Installation beim Beenden
 
 Gezählt wird die Dateigröße (nicht der belegte Platz auf der Platte). Symbolische Links und
 Junctions werden übersprungen, Hardlinks (z. B. in `C:\Windows\WinSxS`) mehrfach gezählt – die Summe
