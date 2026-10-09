@@ -12,6 +12,8 @@ pub fn run() {
             releases::releases,
             releases::install,
             installed::launch,
+            installed::uninstall,
+            installed::reveal,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

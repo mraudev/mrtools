@@ -3,6 +3,7 @@ import { onMounted } from "vue";
 import { TooltipProvider } from "reka-ui";
 import { LoaderCircle } from "@lucide/vue";
 import AppsView from "./components/AppsView.vue";
+import ConfirmUninstall from "./components/ConfirmUninstall.vue";
 import StatusBar from "./components/StatusBar.vue";
 import TitleBar from "./components/TitleBar.vue";
 import Toaster from "@mrtools/ui/components/Toaster";
@@ -24,6 +25,7 @@ onMounted(refresh);
       </main>
       <StatusBar />
     </div>
+    <ConfirmUninstall />
     <Toaster />
   </TooltipProvider>
 </template>

@@ -1,19 +1,30 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import {
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuRoot,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "reka-ui";
+import {
   CircleAlert,
   CircleArrowUp,
   CircleCheck,
   CircleDashed,
   Download,
+  FolderOpen,
   LoaderCircle,
+  Menu,
   Play,
   RefreshCw,
   Tag,
+  Trash2,
 } from "@lucide/vue";
 import Tip from "@mrtools/ui/components/Tip";
 import GithubIcon from "./ui/GithubIcon.vue";
-import { installApp, launchApp, openGithub } from "@/lib/actions";
+import { askUninstall, installApp, launchApp, openGithub, revealApp } from "@/lib/actions";
 import { state } from "@/lib/store";
 import type { App } from "@/lib/types";
 import { appStatus } from "@/lib/version";
@@ -36,6 +47,8 @@ const installedVersion = computed(() => (props.app.installed ? props.app.install
 const status = computed(() => appStatus(installedVersion.value, release.value?.version ?? null));
 const exe = computed(() => props.app.installed?.exe ?? null);
 const installing = computed(() => state.installing.has(props.app.folder));
+const uninstalling = computed(() => state.uninstalling.has(props.app.folder));
+const busy = computed(() => installing.value || uninstalling.value);
 /** An installer is available for the latest release. */
 const installable = computed(() => release.value?.installerSize != null);
 
@@ -93,11 +106,33 @@ const installTip = computed(() => {
           <p class="mt-0.5 truncate text-xs text-muted-foreground">{{ app.description }}</p>
         </Tip>
       </div>
-      <Tip :text="`Quellcode auf GitHub öffnen\nmraudev/mrtools/apps/${app.folder}`">
-        <button class="icon-btn -mt-0.5 -mr-1.5" aria-label="Auf GitHub öffnen" @click="openGithub(githubUrl)">
-          <GithubIcon />
-        </button>
-      </Tip>
+      <div class="-mt-0.5 -mr-1.5 flex">
+        <Tip :text="`Quellcode auf GitHub öffnen\nmraudev/mrtools/apps/${app.folder}`">
+          <button class="icon-btn" aria-label="Auf GitHub öffnen" @click="openGithub(githubUrl)">
+            <GithubIcon />
+          </button>
+        </Tip>
+        <DropdownMenuRoot :modal="false">
+          <DropdownMenuTrigger class="icon-btn data-[state=open]:bg-foreground/8" aria-label="Weitere Aktionen">
+            <Menu />
+          </DropdownMenuTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuContent class="menu anim-pop min-w-44" align="end" :side-offset="4">
+              <DropdownMenuItem class="menu-item" :disabled="!exe" @select="revealApp(app)">
+                <FolderOpen />Im Explorer anzeigen
+              </DropdownMenuItem>
+              <DropdownMenuSeparator class="menu-separator" />
+              <DropdownMenuItem
+                class="menu-item text-red-600 dark:text-red-400 [&_svg]:!text-current"
+                :disabled="!app.installed || busy"
+                @select="askUninstall(app)"
+              >
+                <Trash2 />Deinstallieren
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenuPortal>
+        </DropdownMenuRoot>
+      </div>
     </header>
 
     <dl class="mx-4 grid grid-cols-2 divide-x divide-border rounded-lg border border-border bg-foreground/[0.02] text-center">
@@ -135,8 +170,9 @@ const installTip = computed(() => {
         </span>
       </Tip>
 
-      <button v-if="installing" class="btn btn-outline h-7 px-2.5 text-xs" disabled>
-        <LoaderCircle class="animate-spin" />{{ status.kind === "missing" ? "Installiert …" : "Aktualisiert …" }}
+      <button v-if="busy" class="btn btn-outline h-7 px-2.5 text-xs" disabled>
+        <LoaderCircle class="animate-spin" />
+        {{ uninstalling ? "Deinstalliert …" : status.kind === "missing" ? "Installiert …" : "Aktualisiert …" }}
       </button>
       <template v-else>
         <Tip v-if="status.kind === 'missing' && installable" :text="installTip">
