@@ -10,6 +10,8 @@ name: Release
 # installierte Versionen unter
 # https://github.com/mraudev/mrtools/releases/download/<app>-latest/latest.json
 # abfragen.
+#
+# Ausnahme mrphone-linux (Electron, Linux): eigener Job unten, AppImage + .deb.
 on:
   push:
     tags: ["*-v*"]
@@ -19,6 +21,7 @@ permissions:
 
 jobs:
   release:
+    if: ${{ !startsWith(github.ref_name, 'mrphone-linux-v') }}
     runs-on: windows-latest
     # Die Signatur-Secrets liegen im Environment „release“, das nur für Tags
     # `*-v*` freigegeben ist (siehe README).
@@ -110,3 +113,74 @@ jobs:
               --notes "Enthält nur die latest.json für den Auto-Updater von $APP. Die Installer liegen in den Releases $APP-vX.Y.Z."
           fi
           gh release upload "$APP-latest" update/latest.json --repo "$GITHUB_REPOSITORY" --clobber
+
+  # mrphone für Linux: die Electron-Version (apps/mrphone-linux, nicht in den npm-Workspaces). Das AppImage
+  # aktualisiert sich über das feste Release `mrphone-linux-latest` (Provider „generic“): dorthin kommt die
+  # latest-linux.yml mit absoluten Adressen auf die Dateien des versionierten Releases.
+  linux:
+    if: ${{ startsWith(github.ref_name, 'mrphone-linux-v') }}
+    runs-on: ubuntu-24.04 # fest statt ubuntu-latest: kein ungeplanter Wechsel
+    permissions:
+      contents: write # Release anlegen und Dateien hochladen
+    defaults:
+      run:
+        working-directory: apps/mrphone-linux
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Version aus dem Tag
+        id: app
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "mrphone-linux-v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME passt nicht zur Version $version in apps/mrphone-linux/package.json"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Release-Notizen aus den Commits
+        id: notes
+        run: |
+          previous=$(git describe --tags --abbrev=0 --match "mrphone-linux-v*" "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          delimiter="NOTES_${GITHUB_RUN_ID}_${RANDOM}${RANDOM}"
+          {
+            echo "body<<$delimiter"
+            git log --no-merges --pretty='- %s' "${previous:+$previous..}$GITHUB_REF_NAME" -- .
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      # --ignore-scripts: keine Install-Skripte aus Abhängigkeiten; electron-builder lädt Electron selbst.
+      - run: npm ci --ignore-scripts
+
+      - run: npx electron-builder --linux --publish never
+
+      - name: Release veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTES: ${{ steps.notes.outputs.body }}
+          VERSION: ${{ steps.app.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/mrphone-*.AppImage dist/mrphone_*.deb dist/latest-linux.yml \
+            --repo "$GITHUB_REPOSITORY" --title "mrphone-linux $VERSION" --notes "$NOTES"
+
+      - name: Update-Kanal aktualisieren
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
+          mkdir -p update
+          sed -E "s#^( *- url: | *url: )(.*)#\1$base/\2#; s#^path: (.*)#path: $base/\1#" dist/latest-linux.yml > update/latest-linux.yml
+          cat update/latest-linux.yml
+          if ! gh release view mrphone-linux-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create mrphone-linux-latest --repo "$GITHUB_REPOSITORY" --prerelease --target main \
+              --title "mrphone-linux – Update-Kanal" \
+              --notes "Enthält nur die latest-linux.yml für den Auto-Updater von mrphone für Linux (AppImage). Die Dateien liegen in den Releases mrphone-linux-vX.Y.Z."
+          fi
+          gh release upload mrphone-linux-latest update/latest-linux.yml --repo "$GITHUB_REPOSITORY" --clobber

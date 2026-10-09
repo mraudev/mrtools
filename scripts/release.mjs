@@ -15,8 +15,14 @@ if (run("git", ["status", "--porcelain"])) {
   process.exit(1);
 }
 
-// npm.cmd lässt sich unter Windows nur über die Shell starten.
-execFileSync("npm", ["version", bump, "--no-git-tag-version", "-w", `apps/${app}`], { stdio: "inherit", shell: true });
+// npm.cmd lässt sich unter Windows nur über die Shell starten. Apps außerhalb der Workspaces (eigenes
+// package-lock.json, z. B. mrphone-linux) bekommen die Version in ihrem eigenen Ordner.
+const own = existsSync(`apps/${app}/package-lock.json`);
+execFileSync("npm", ["version", bump, "--no-git-tag-version", ...(own ? [] : ["-w", `apps/${app}`])], {
+  stdio: "inherit",
+  shell: true,
+  cwd: own ? `apps/${app}` : undefined,
+});
 const { version } = JSON.parse(readFileSync(`apps/${app}/package.json`, "utf8"));
 const tag = `${app}-v${version}`;
 

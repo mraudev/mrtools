@@ -691,7 +691,7 @@ function setupUpdater() {
 // Beschreibung des Releases (der „Body“ auf der GitHub-Release-Seite) für die aufklappbaren Details.
 function fetchReleaseNotes(version) {
   return new Promise((resolve, reject) => {
-    const req = net.request({ url: `https://api.github.com/repos/mraudev/sipphone/releases/tags/v${version}`, headers: { 'User-Agent': 'sipphone', Accept: 'application/vnd.github+json' } });
+    const req = net.request({ url: `https://api.github.com/repos/mraudev/mrtools/releases/tags/mrphone-linux-v${version}`, headers: { 'User-Agent': 'sipphone', Accept: 'application/vnd.github+json' } });
     req.on('response', (res) => {
       let body = '';
       res.on('data', (c) => (body += c));

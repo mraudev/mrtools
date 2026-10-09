@@ -1,6 +1,9 @@
-# mrphone
+# mrphone für Linux
 
-Schlankes SIP-Softphone für Windows und Linux als Desktop-App (Electron), entwickelt für Asterisk-Telefonanlagen.
+Schlankes SIP-Softphone als Desktop-App (Electron), entwickelt für Asterisk-Telefonanlagen. **Dies ist die
+Linux-Version.** Unter Windows ist mrphone seit 2.1.0 die Tauri-Version in [apps/mrphone](../mrphone) (kleiner,
+eigener Update-Kanal); Windows-Installationen dieser Electron-Version steigen per Update dorthin um. Bis 2.0.0
+lag diese App im Repository [mraudev/sipphone](https://github.com/mraudev/sipphone) und baute auch für Windows.
 
 ![Icon](assets/icon.png)
 
@@ -30,16 +33,7 @@ Schlankes SIP-Softphone für Windows und Linux als Desktop-App (Electron), entwi
 
 ## Installation
 
-`mrphone-Setup-<version>.exe` von der [Release-Seite](https://github.com/mraudev/sipphone/releases) laden (oder selbst bauen, siehe unten) und ausführen. Das Setup installiert wahlweise nur für den aktuellen Benutzer (ohne Adminrechte) oder für alle Benutzer.
-
-Beim ersten Start:
-
-- **SmartScreen** warnt, weil die exe nicht signiert ist → *Weitere Informationen* → *Trotzdem ausführen*.
-- **Windows-Firewall** fragt nach Netzwerkzugriff → zulassen, sonst kommen keine eingehenden Anrufe an.
-
-### Linux
-
-Ebenfalls auf der [Release-Seite](https://github.com/mraudev/sipphone/releases), für x86-64:
+Von den Releases `mrphone-linux X.Y.Z` in [mraudev/mrtools](https://github.com/mraudev/mrtools/releases), für x86-64:
 
 - **AppImage** (`mrphone-<version>.AppImage`) – ohne Installation, aktualisiert sich selbst. Braucht `libfuse2` (Ubuntu 24.04: `libfuse2t64`):
   ```bash
@@ -51,7 +45,7 @@ Ebenfalls auf der [Release-Seite](https://github.com/mraudev/sipphone/releases),
   sudo apt install ./mrphone_*_amd64.deb
   ```
 
-Unterschiede zu Windows:
+Unterschiede zur Windows-Version:
 
 - Kein Outlook-Import (der CSV-Import geht) und kein automatisches Abmelden bei gesperrtem Bildschirm.
 - Anruf-Benachrichtigungen ohne *Annehmen*/*Ablehnen*-Knöpfe – ein Klick öffnet das Fenster.
@@ -70,8 +64,7 @@ Voraussetzung: Node.js 22 oder neuer.
 ```bash
 npm install
 npm start          # App im Entwicklungsmodus starten
-npm run dist       # Setup und Portable-exe nach dist/ bauen
-npx electron-builder --linux   # unter Linux: AppImage und .deb nach dist/ bauen
+npm run dist       # unter Linux: AppImage und .deb nach dist/ bauen
 npm run icon       # assets/icon.png und icon.ico aus assets/icon.svg erzeugen
 ```
 
@@ -99,14 +92,24 @@ $env:SIP_TRACE='1'; npm start
 
 Was sich je Version geändert hat, steht in [RELEASES.md](RELEASES.md).
 
-Die installierte App prüft beim Start und alle 4 Stunden, ob es auf GitHub ein neueres [Release](https://github.com/mraudev/sipphone/releases) gibt, und lädt es im Hintergrund. Danach erscheint *Update bereit – Neu starten* (nie während eines Gesprächs) samt aufklappbarer Beschreibung des Releases (*Was ist neu?*); ohne Klick wird das Update beim nächsten Beenden installiert. Die Portable-exe aktualisiert sich nicht selbst.
+Das AppImage prüft beim Start und alle 4 Stunden das feste Release `mrphone-linux-latest`
+(`https://github.com/mraudev/mrtools/releases/download/mrphone-linux-latest/latest-linux.yml`, Provider „generic“,
+weil sich im Monorepo alle Apps das neueste Release teilen) und lädt ein Update im Hintergrund. Danach erscheint
+*Update bereit – Neu starten* (nie während eines Gesprächs) samt aufklappbarer Beschreibung des Releases
+(*Was ist neu?*); ohne Klick wird das Update beim nächsten Beenden installiert. Das `.deb` aktualisiert sich
+nicht selbst.
 
-Neue Version veröffentlichen:
+Installationen bis 2.0.0 fragen noch `mraudev/sipphone` ab; dort liegt dafür das Brücken-Release v2.1.1.
+
+Neue Version veröffentlichen (im Repository-Root):
 
 ```bash
-npm version 0.3.0          # Version in package.json erhöhen, Commit + Tag v0.3.0
-git push --follow-tags     # GitHub Actions baut und veröffentlicht das Release
+npm run release -- mrphone-linux <patch|minor|major|x.y.z>   # Version, Commit, Tag mrphone-linux-vX.Y.Z
+git push --follow-tags                                       # GitHub Actions baut und veröffentlicht
 ```
+
+Die App gehört nicht zu den npm-Workspaces des Monorepos (eigenes `package-lock.json`), damit Electron nicht bei
+jedem Lauf der übrigen Apps mitinstalliert wird.
 
 ## Einstellungen und Daten
 

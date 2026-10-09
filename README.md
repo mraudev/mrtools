@@ -11,8 +11,11 @@ und reka-ui, Aufbau und Aussehen wie [mrstart](apps/mrstart).
 | [mrfilesys](apps/mrfilesys)        | Dateien und Ordner durchsuchen und verwalten | 1460  |
 | [mrstart](apps/mrstart)            | Desktop-Launcher für Entwicklungsprojekte | 1420     |
 | [mrphone](apps/mrphone)            | SIP-Softphone (Nachfolger der Electron-Version) | –    |
+| [mrphone-linux](apps/mrphone-linux) | mrphone für Linux (Electron, AppImage/.deb) | –     |
 
-Jede App hat ihre eigene Version (in `apps/<app>/package.json`) und eigene Releases.
+Jede App hat ihre eigene Version (in `apps/<app>/package.json`) und eigene Releases. Ausnahme vom Aufbau:
+mrphone-linux ist die Electron-Version von mrphone für Linux (vorher mraudev/sipphone); sie gehört nicht zu den
+npm-Workspaces und hat im Release-Workflow einen eigenen Linux-Job.
 
 ## Aufbau
 

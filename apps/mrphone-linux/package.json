@@ -9,7 +9,7 @@
   "scripts": {
     "start": "electron .",
     "icon": "electron scripts/make-icon.js",
-    "dist": "electron-builder --win --publish never"
+    "dist": "electron-builder --linux --publish never"
   },
   "build": {
     "appId": "de.rau.sipphone",
@@ -28,10 +28,8 @@
     ],
     "publish": [
       {
-        "provider": "github",
-        "owner": "mraudev",
-        "repo": "sipphone",
-        "releaseType": "release"
+        "provider": "generic",
+        "url": "https://github.com/mraudev/mrtools/releases/download/mrphone-linux-latest/"
       }
     ],
     "win": {
