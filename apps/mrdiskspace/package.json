@@ -1,7 +1,7 @@
 {
   "name": "mrdiskspace",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Zeigt, wo der Plattenplatz bleibt",
   "author": "Michael Rau <dev@mraudev.com>",
   "type": "module",
