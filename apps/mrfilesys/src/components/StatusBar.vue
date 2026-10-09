@@ -5,7 +5,9 @@ import { LoaderCircle, X } from "@lucide/vue";
 import ThemeToggle from "@mrtools/ui/components/ThemeToggle";
 import Tip from "@mrtools/ui/components/Tip";
 import { cancelDeletion, deletions } from "@/lib/deletion";
-import { formatBytes, formatCount } from "@/lib/format";
+import { baseName } from "@/lib/paths";
+import { cancelTransfer, transfers } from "@/lib/transfer";
+import { formatBytes, formatCount, formatPercent } from "@/lib/format";
 import { selectedEntries, state, visible } from "@/lib/store";
 
 const version = ref("");
@@ -27,6 +29,26 @@ const hiddenCount = computed(() => state.entries.length - visible.value.length);
     </template>
     <span v-else>{{ state.drives.length }} Laufwerke</span>
     <div class="flex-1" />
+
+    <div v-for="job in transfers.values()" :key="`t${job.id}`" class="flex min-w-0 items-center gap-1.5 text-foreground">
+      <LoaderCircle class="size-3.5 shrink-0 animate-spin text-accent-text" />
+      <Tip :text="job.current || undefined">
+        <span class="truncate tabular-nums">
+          {{ job.op === "move" ? "Verschiebe" : "Kopiere" }} {{ job.label }} nach „{{ baseName(job.target) }}“ …
+          <template v-if="job.totalFiles">
+            {{ formatCount(job.files) }} von {{ formatCount(job.totalFiles) }} Dateien ·
+            {{ formatPercent(job.bytes, job.totalBytes) }}
+          </template>
+          <template v-else>{{ formatCount(job.files) }} Dateien</template>
+          <template v-if="job.failed">· <span class="text-red-500">{{ formatCount(job.failed) }} Fehler</span></template>
+        </span>
+      </Tip>
+      <Tip text="Abbrechen – bereits Übertragenes bleibt">
+        <button class="icon-btn size-5 [&_svg]:size-3.5" aria-label="Abbrechen" @click="cancelTransfer(job.id)">
+          <X />
+        </button>
+      </Tip>
+    </div>
 
     <div v-for="job in deletions.values()" :key="job.id" class="flex min-w-0 items-center gap-1.5 text-foreground">
       <LoaderCircle class="size-3.5 shrink-0 animate-spin text-accent-text" />

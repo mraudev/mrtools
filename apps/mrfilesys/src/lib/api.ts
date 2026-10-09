@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Clipboard, Drive, Entry, FileOp, FolderSize } from "./types";
+import type { Clipboard, ConflictChoice, Drive, Entry, FolderSize, TransferOp } from "./types";
 
 /** Typed wrappers around the Rust commands in `src-tauri/src`. */
 export const api = {
@@ -14,7 +14,11 @@ export const api = {
   openWith: (path: string) => invoke<void>("open_with", { path }),
   properties: (path: string) => invoke<void>("properties", { path }),
   openTerminal: (dir: string) => invoke<void>("open_terminal", { dir }),
-  fileOp: (op: FileOp, paths: string[], target?: string) => invoke<void>("file_op", { op, paths, target }),
+  recycle: (paths: string[]) => invoke<void>("recycle", { paths }),
+  checkConflicts: (paths: string[], target: string) => invoke<string[]>("check_conflicts", { paths, target }),
+  startTransfer: (op: TransferOp, paths: string[], target: string, conflict: ConflictChoice) =>
+    invoke<number>("start_transfer", { op, paths, target, conflict }),
+  cancelTransfer: (id: number) => invoke<void>("cancel_transfer", { id }),
   clipboardSet: (paths: string[], cut: boolean) => invoke<void>("clipboard_set", { paths, cut }),
   clipboardGet: () => invoke<Clipboard>("clipboard_get"),
   clipboardClear: () => invoke<void>("clipboard_clear"),

@@ -21,8 +21,13 @@ Dateien und Ordner durchsuchen und verwalten – ähnlich wie der Windows-Explor
 - **Endgültig löschen** (<kbd>Umschalt</kbd>+<kbd>Entf</kbd>) ohne vorheriges Durchzählen und parallel – bei sehr vielen
   Dateien (z. B. `node_modules`) deutlich schneller als im Explorer. Fortschritt und Abbrechen in der Statusleiste;
   schreibgeschützte Dateien werden mitgelöscht, Verknüpfungen (Symlinks, Junctions) nur als Verweis entfernt
-- Kopieren, Verschieben und Papierkorb über Windows selbst – mit dessen Fortschritts- und Konfliktdialogen.
-  Die **Zwischenablage ist mit dem Explorer geteilt**: in mrfilesys kopieren, im Explorer einfügen und umgekehrt
+- **Schnelles Kopieren und Verschieben** (Einfügen, Drag & Drop): parallel statt Datei für Datei – bei vielen
+  kleinen Dateien rund 20-mal schneller als im Explorer. Verschieben auf demselben Laufwerk ist ein Umbenennen,
+  auf ein anderes Laufwerk wird kopiert und die Quelle nur gelöscht, wenn alles geklappt hat. Gibt es Namen im
+  Ziel schon, wird einmal gefragt: Ersetzen (Ordner zusammenführen), Überspringen oder Beide behalten.
+  Einfügen in denselben Ordner legt „x - Kopie“ an. Fortschritt mit „x von y Dateien“ und Abbrechen in der Statusleiste
+- Papierkorb über Windows selbst (wiederherstellbar). Die **Zwischenablage ist mit dem Explorer geteilt**:
+  in mrfilesys kopieren, im Explorer einfügen und umgekehrt
 - **Drag & Drop** wie im Explorer: auf Ordner in der Liste, in der Seitenleiste oder in der Adressleiste ziehen –
   auf demselben Laufwerk wird verschoben, sonst kopiert (<kbd>Strg</kbd> kopiert, <kbd>Umschalt</kbd> verschiebt).
   Aus dem Fenster heraus in Explorer, Desktop oder andere Apps ziehen, und Dateien von dort hineinziehen

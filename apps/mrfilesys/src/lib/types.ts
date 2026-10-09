@@ -52,6 +52,31 @@ export interface DeleteDone {
   elapsedMs: number;
 }
 
-export type FileOp = "copy" | "move" | "recycle";
+export type TransferOp = "copy" | "move";
+
+/** What happens to items whose name exists in the target already. */
+export type ConflictChoice = "replace" | "skip" | "keepBoth";
+
+export interface TransferProgress {
+  id: number;
+  files: number;
+  bytes: number;
+  /** 0 while still being counted. */
+  totalFiles: number;
+  totalBytes: number;
+  failed: number;
+  current: string;
+}
+
+export interface TransferDone {
+  id: number;
+  files: number;
+  bytes: number;
+  skipped: number;
+  failed: number;
+  failures: { path: string; message: string }[];
+  cancelled: boolean;
+  elapsedMs: number;
+}
 
 export type SortKey = "name" | "modified" | "type" | "size";

@@ -113,6 +113,13 @@ fn remove_tree(path: &Path, progress: &Progress) {
     }
 }
 
+/// Deletes `path` completely (used after copying for a move across drives). True if nothing failed.
+pub(crate) fn remove_all(path: &Path) -> bool {
+    let progress = Progress::default();
+    remove_tree(path, &progress);
+    progress.failed.load(Ordering::Relaxed) == 0
+}
+
 fn is_not_empty(error: &io::Error) -> bool {
     // ERROR_DIR_NOT_EMPTY on Windows, ENOTEMPTY elsewhere.
     error.kind() == io::ErrorKind::DirectoryNotEmpty || error.raw_os_error() == Some(145)

@@ -178,7 +178,7 @@ pub async fn rename(path: String, name: String) -> Result<String, String> {
 }
 
 /// `name`, or `stem (2).ext`, `stem (3).ext`, … – the first that does not exist in `dir`.
-fn unique(dir: &Path, name: &str) -> PathBuf {
+pub(crate) fn unique(dir: &Path, name: &str) -> PathBuf {
     let candidate = dir.join(name);
     if fs::symlink_metadata(&candidate).is_err() {
         return candidate;

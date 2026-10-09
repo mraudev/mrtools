@@ -4,6 +4,7 @@ import { toastError } from "@mrtools/ui/lib/toast";
 import { api } from "./api";
 import { dropOp, type DropOp } from "./drop";
 import { samePlace } from "./favorites";
+import { startTransfer } from "./transfer";
 import { pinFavorites, refresh, selectedEntries, selectOnly, settings, state } from "./store";
 
 /**
@@ -76,17 +77,9 @@ function reset() {
 
 function finish(paths: string[], op: DropOp | null, target: string, pin: number) {
   if (pin >= 0) pinFavorites(paths, pin);
-  else if (op && target) perform(op, paths, target);
+  else if (op && target) startTransfer(op, paths, target);
 }
 
-async function perform(op: DropOp, paths: string[], target: string) {
-  try {
-    await api.fileOp(op, paths, target);
-  } catch (e) {
-    toastError(op === "move" ? "Verschieben fehlgeschlagen" : "Kopieren fehlgeschlagen", e);
-  }
-  await refresh();
-}
 
 /** Scrolls the file list while dragging near its top or bottom edge. */
 function autoScroll(x: number, y: number) {

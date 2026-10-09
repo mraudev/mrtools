@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { TooltipProvider } from "reka-ui";
 import { TriangleAlert } from "@lucide/vue";
 import CommandBar from "./components/CommandBar.vue";
+import ConflictDialog from "./components/ConflictDialog.vue";
 import DetailPanel from "./components/DetailPanel.vue";
 import DragOverlay from "./components/DragOverlay.vue";
 import FileList from "./components/FileList.vue";
@@ -26,6 +27,7 @@ import {
 } from "./lib/actions";
 import { initDeletion } from "./lib/deletion";
 import { initExternalDrop } from "./lib/dnd";
+import { initTransfer } from "./lib/transfer";
 import { baseName } from "./lib/paths";
 import { goBack, goForward, goUp, initStore, refresh, selectAll, selectedEntries, settings, state } from "./lib/store";
 import "@mrtools/ui/lib/theme";
@@ -86,6 +88,7 @@ onMounted(() => {
   initStore();
   initExternalDrop();
   initDeletion();
+  initTransfer();
 });
 
 onUnmounted(() => {
@@ -138,6 +141,7 @@ onUnmounted(() => {
         </button>
       </template>
     </Dialog>
+    <ConflictDialog />
     <DragOverlay />
     <Toaster />
   </TooltipProvider>

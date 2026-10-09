@@ -1,16 +1,7 @@
-//! Windows shell integration: opening files, the properties dialog, copying and deleting with
-//! Explorer's own progress and conflict dialogs, and the file clipboard shared with Explorer.
+//! Windows shell integration: opening files, the properties dialog, the recycle bin, dragging files
+//! out of the window and the file clipboard shared with Explorer.
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Deserialize, Clone, Copy)]
-#[serde(rename_all = "lowercase")]
-pub enum FileOp {
-    Copy,
-    Move,
-    /// Into the recycle bin.
-    Recycle,
-}
+use serde::Serialize;
 
 #[derive(Serialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -61,10 +52,9 @@ pub fn open_terminal(dir: String) -> Result<(), String> {
     command.spawn().map(drop).map_err(|e| e.to_string())
 }
 
-/// Copies, moves or deletes like Explorer (progress, conflict questions, undo).
-/// `target` is the destination folder for copy and move.
+/// Moves into the recycle bin like Explorer (progress, warning for items too large for it, undo).
 #[tauri::command]
-pub async fn file_op(window: tauri::WebviewWindow, op: FileOp, paths: Vec<String>, target: Option<String>) -> Result<(), String> {
+pub async fn recycle(window: tauri::WebviewWindow, paths: Vec<String>) -> Result<(), String> {
     #[cfg(windows)]
     let owner = window.hwnd().map(|h| h.0 as isize).unwrap_or(0);
     #[cfg(not(windows))]
@@ -72,7 +62,7 @@ pub async fn file_op(window: tauri::WebviewWindow, op: FileOp, paths: Vec<String
         let _ = window;
         0
     };
-    tauri::async_runtime::spawn_blocking(move || imp::file_op(owner, op, &paths, target.as_deref()))
+    tauri::async_runtime::spawn_blocking(move || imp::recycle(owner, &paths))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -166,7 +156,7 @@ fn double_null(paths: &[String]) -> Vec<u16> {
 
 #[cfg(windows)]
 mod imp {
-    use super::{double_null, Clipboard, FileOp};
+    use super::{double_null, Clipboard};
     use std::ptr::{null, null_mut};
     use windows_sys::Win32::{
         Foundation::{GlobalFree, HWND},
@@ -181,7 +171,7 @@ mod imp {
         UI::{
             Shell::{
                 DragQueryFileW, SHFileOperationW, ShellExecuteExW, DROPFILES, FOF_ALLOWUNDO, FOF_NOCONFIRMATION,
-                FOF_RENAMEONCOLLISION, FOF_WANTNUKEWARNING, FO_COPY, FO_DELETE, FO_MOVE, SEE_MASK_INVOKEIDLIST,
+                FOF_WANTNUKEWARNING, FO_DELETE, SEE_MASK_INVOKEIDLIST,
                 SHELLEXECUTEINFOW, SHFILEOPSTRUCTW,
             },
             WindowsAndMessaging::SW_SHOWNORMAL,
@@ -214,21 +204,13 @@ mod imp {
         Ok(())
     }
 
-    pub fn file_op(owner: isize, op: FileOp, paths: &[String], target: Option<&str>) -> Result<(), String> {
+    pub fn recycle(owner: isize, paths: &[String]) -> Result<(), String> {
         let from = double_null(paths);
-        let to = target.map(|t| double_null(&[t.to_owned()]));
-        let (func, flags) = match op {
-            // Pasting into the same folder makes "x - Kopie" instead of asking.
-            FileOp::Copy => (FO_COPY, FOF_ALLOWUNDO | FOF_RENAMEONCOLLISION),
-            FileOp::Move => (FO_MOVE, FOF_ALLOWUNDO),
-            FileOp::Recycle => (FO_DELETE, FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_WANTNUKEWARNING),
-        };
         let mut info: SHFILEOPSTRUCTW = unsafe { std::mem::zeroed() };
         info.hwnd = owner as HWND;
-        info.wFunc = func;
+        info.wFunc = FO_DELETE;
         info.pFrom = from.as_ptr();
-        info.pTo = to.as_ref().map_or(null(), |t| t.as_ptr());
-        info.fFlags = flags as _;
+        info.fFlags = (FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_WANTNUKEWARNING) as _;
         match unsafe { SHFileOperationW(&mut info) } {
             0 => Ok(()),
             // Cancelled by the user – not an error.
@@ -338,7 +320,7 @@ mod imp {
 
 #[cfg(not(windows))]
 mod imp {
-    use super::{Clipboard, FileOp};
+    use super::Clipboard;
 
     const UNSUPPORTED: &str = "Nur unter Windows verfügbar";
 
@@ -346,7 +328,7 @@ mod imp {
         Err(UNSUPPORTED.into())
     }
 
-    pub fn file_op(_owner: isize, _op: FileOp, _paths: &[String], _target: Option<&str>) -> Result<(), String> {
+    pub fn recycle(_owner: isize, _paths: &[String]) -> Result<(), String> {
         Err(UNSUPPORTED.into())
     }
 

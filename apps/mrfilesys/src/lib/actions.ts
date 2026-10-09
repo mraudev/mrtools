@@ -2,6 +2,7 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { toast, toastError } from "@mrtools/ui/lib/toast";
 import { api } from "./api";
 import { deletePermanently } from "./deletion";
+import { startTransfer } from "./transfer";
 import { isInside, parentPath } from "./paths";
 import { navigate, refresh, selectedEntries, selectOnly, state } from "./store";
 import type { Entry } from "./types";
@@ -62,21 +63,17 @@ export async function paste(target = state.path) {
     return toastError("Zwischenablage nicht verfügbar", e);
   }
   if (!clip.paths.length) return toast("info", "Keine Dateien in der Zwischenablage");
-  if (clip.cut) {
-    if (clip.paths.some((p) => isInside(target, p))) {
-      return toast("error", "Ein Ordner kann nicht in sich selbst verschoben werden");
-    }
-    // Moving into the same folder changes nothing.
-    if (clip.paths.every((p) => parentPath(p).toLowerCase() === target.toLowerCase())) return;
+  if (clip.paths.some((p) => isInside(target, p))) {
+    return toast("error", "Ein Ordner kann nicht in sich selbst eingefügt werden");
   }
-  const ok = await attempt(clip.cut ? "Verschieben fehlgeschlagen" : "Kopieren fehlgeschlagen", () =>
-    api.fileOp(clip.cut ? "move" : "copy", clip.paths, target),
-  );
-  if (ok && clip.cut) {
+  // Moving into the same folder changes nothing.
+  if (clip.cut && clip.paths.every((p) => parentPath(p).toLowerCase() === target.toLowerCase())) return;
+  // After cut & paste the clipboard is emptied, like in Explorer.
+  const afterMove = () => {
     state.cut.clear();
     api.clipboardClear().catch(() => {});
-  }
-  await refresh();
+  };
+  await startTransfer(clip.cut ? "move" : "copy", clip.paths, target, clip.cut ? afterMove : undefined);
 }
 
 // ---------------------------------------------------------------------------
@@ -91,7 +88,7 @@ export async function deletePaths(paths: string[], permanently = false, confirme
   }
   state.confirmDelete = [];
   if (permanently) return deletePermanently(paths);
-  await attempt("Löschen fehlgeschlagen", () => api.fileOp("recycle", paths));
+  await attempt("Löschen fehlgeschlagen", () => api.recycle(paths));
   await refresh();
 }
 
