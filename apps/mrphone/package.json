@@ -1,7 +1,7 @@
 {
   "name": "mrphone",
   "private": true,
-  "version": "1.26.0",
+  "version": "2.1.0",
   "description": "SIP-Softphone",
   "author": "Michael Rau <dev@mraudev.com>",
   "repository": {
