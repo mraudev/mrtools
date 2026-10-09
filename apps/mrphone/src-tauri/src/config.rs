@@ -22,6 +22,7 @@ fn defaults() -> Value {
         "micProcessing": true,
         "hdVoice": true,
         "theme": "system",
+        "design": "mr",
         "ringOnHeadset": false,
         "headsetAnswer": false,
         "ringtonePreset": "standard",

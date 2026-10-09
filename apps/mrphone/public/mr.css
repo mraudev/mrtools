@@ -1,0 +1,256 @@
+/* Design „mrtools“: Aussehen der übrigen mr-Apps (packages/ui/src/theme.css) – flache Zink-Töne, Amber als
+   Akzent, Kopfleiste als Kartenfläche. Greift nur mit <html data-design="mr">; ohne bleibt das klassische
+   Design aus style.css unverändert. */
+
+:root[data-design="mr"] {
+  --bg: #131316;
+  --bg-2: #1b1b1f;
+  --card: #1b1b1f;
+  --popover: #26262b;
+  --line: rgb(255 255 255 / 0.08);
+  --text: #ececef;
+  --muted: #9a9aa3;
+  --accent: #f59e0b;
+  --accent-fg: #18181b;
+  --accent-text: #f59e0b;
+  --green: #10b981;
+  --red: #ef4444;
+  --amber: #f59e0b;
+  --overlay: rgb(236 236 239 / 0.08);
+  --overlay-strong: rgb(236 236 239 / 0.13);
+  --secondary-bg: rgb(236 236 239 / 0.08);
+  --sunken: rgb(0 0 0 / 0.25);
+  --toast-bg: #26262b;
+  --danger: #f87171;
+  --scrim: rgb(0 0 0 / 0.55);
+  --scroll-thumb: rgb(236 236 239 / 0.18);
+  --scroll-thumb-hover: rgb(236 236 239 / 0.3);
+  --logo: linear-gradient(135deg, #fcd34d, #f97316);
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-design="mr"] {
+    --bg: #f4f4f6;
+    --bg-2: #ffffff;
+    --card: #ffffff;
+    --popover: #ffffff;
+    --line: rgb(0 0 0 / 0.09);
+    --text: #1c1c21;
+    --muted: #6b6b75;
+    --accent-text: color-mix(in oklab, #f59e0b 62%, black);
+    --green: #059669;
+    --red: #dc2626;
+    --amber: #d97706;
+    --overlay: rgb(28 28 33 / 0.06);
+    --overlay-strong: rgb(28 28 33 / 0.1);
+    --secondary-bg: rgb(28 28 33 / 0.06);
+    --sunken: rgb(0 0 0 / 0.04);
+    --toast-bg: #ffffff;
+    --danger: #dc2626;
+    --scrim: rgb(0 0 0 / 0.35);
+    --scroll-thumb: rgb(28 28 33 / 0.18);
+    --scroll-thumb-hover: rgb(28 28 33 / 0.3);
+  }
+}
+
+[data-design="mr"] body {
+  font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+[data-design="mr"] input, [data-design="mr"] textarea { user-select: text; }
+[data-design="mr"] ::selection { background: color-mix(in oklab, var(--accent) 35%, transparent); }
+[data-design="mr"] ::-webkit-scrollbar { width: 10px; height: 10px; }
+
+/* --- Kopfleiste: Kartenfläche über die ganze Breite, kleines Logo, Name, Knöpfe --- */
+[data-design="mr"] .phone { padding: 0 16px 16px; }
+:root[data-design="mr"] .topbar {
+  margin: 0 -16px;
+  padding: 0 136px 0 14px; /* rechts: drei Fensterknöpfe à 44 px + Abstand */
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+}
+[data-design="mr"] .brand { gap: 8px; font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+[data-design="mr"] .brand svg { display: none; }
+.brand-logo { display: none; }
+[data-design="mr"] .brand-logo { display: block; width: 20px; height: 20px; pointer-events: none; }
+[data-design="mr"] .icon-btn {
+  width: 28px; height: 28px; border-radius: 6px; font-size: 16px;
+  transition: background 0.15s, color 0.15s;
+}
+[data-design="mr"] .icon-btn:hover { background: var(--overlay); color: var(--text); }
+[data-design="mr"] .topbar-actions { gap: 4px; }
+[data-design="mr"] #dndBtn.active, [data-design="mr"] #dndBtn.active:hover { color: var(--red); background: color-mix(in oklab, var(--red) 15%, transparent); }
+[data-design="mr"] #awayBtn.active, [data-design="mr"] #awayBtn.active:hover { color: var(--accent-text); background: color-mix(in oklab, var(--accent) 15%, transparent); }
+
+/* --- Status, Hinweise --- */
+[data-design="mr"] .status-row { margin-top: 14px; }
+[data-design="mr"] .status {
+  padding: 8px 12px; border-radius: 8px; gap: 10px;
+  background: var(--card); font-size: 13px;
+}
+[data-design="mr"] .status:hover { border-color: color-mix(in oklab, var(--text) 18%, transparent); }
+[data-design="mr"] .status-text { font-weight: 600; }
+[data-design="mr"] .status-aor { font-size: 12px; }
+[data-design="mr"] .status .dot { width: 8px; height: 8px; }
+[data-design="mr"] .status[data-state="registered"] .dot { box-shadow: 0 0 0 3px color-mix(in oklab, var(--green) 22%, transparent); }
+[data-design="mr"] .status[data-state="registered"][data-presence="dnd"] .dot { box-shadow: 0 0 0 3px color-mix(in oklab, var(--red) 22%, transparent); }
+[data-design="mr"] .status[data-state="registered"][data-presence="away"] .dot { box-shadow: 0 0 0 3px color-mix(in oklab, var(--amber) 22%, transparent); }
+[data-design="mr"] .takeover { padding: 3px 10px; font-size: 12px; }
+[data-design="mr"] .update-bar {
+  border-radius: 8px; padding: 8px 8px 8px 12px;
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+  border-color: color-mix(in oklab, var(--accent) 35%, transparent);
+}
+[data-design="mr"] .update-notes-toggle { color: var(--accent-text); }
+[data-design="mr"] .update-notes { border-radius: 6px; }
+
+/* --- Reiter wie Segmented aus packages/ui --- */
+[data-design="mr"] .tabs {
+  margin-top: 12px; gap: 2px; padding: 2px;
+  border-radius: 8px; background: var(--bg); border: 1px solid var(--line);
+}
+[data-design="mr"] .tab, [data-design="mr"] .stab {
+  height: 28px; padding: 0 2px; border-radius: 6px;
+  font-size: 13px; font-weight: 500; color: var(--muted);
+  transition: background 0.15s, color 0.15s;
+}
+[data-design="mr"] .tab:hover, [data-design="mr"] .stab:hover { color: var(--text); }
+[data-design="mr"] .tab.active, [data-design="mr"] .stab.active {
+  background: var(--accent); color: var(--accent-fg); font-weight: 600;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+}
+[data-design="mr"] .badge { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+
+/* --- Wähltastatur --- */
+[data-design="mr"] .view { margin-top: 16px; }
+[data-design="mr"] #number { font-size: 26px; font-weight: 400; letter-spacing: 0.5px; }
+[data-design="mr"] #number::placeholder { font-size: 15px; }
+[data-design="mr"] .keypad { grid-template-columns: repeat(3, 84px); gap: 10px; margin: 20px 0 20px; }
+[data-design="mr"] .key {
+  width: 84px; height: 60px; border-radius: 10px;
+  background: var(--card); border: 1px solid var(--line);
+  transition: background 0.12s, border-color 0.12s, transform 0.08s;
+}
+[data-design="mr"] .key:hover { background: color-mix(in oklab, var(--text) 6%, var(--card)); }
+[data-design="mr"] .key:active { transform: scale(0.97); background: color-mix(in oklab, var(--text) 11%, var(--card)); }
+[data-design="mr"] .key b { font-size: 22px; font-weight: 500; }
+[data-design="mr"] .key small { font-size: 9px; letter-spacing: 1.5px; }
+[data-design="mr"] #dialer.with-line .keypad { margin: 12px 0 14px; row-gap: 8px; }
+@media (max-height: 760px) {
+  [data-design="mr"] #dialer.with-line .keypad { grid-template-columns: repeat(3, 76px); }
+  [data-design="mr"] #dialer.with-line .key { width: 76px; height: 54px; }
+}
+
+/* Runde Knöpfe: flach, ohne Leuchten */
+[data-design="mr"] .round-btn { transition: transform 0.1s, background 0.15s, filter 0.15s; }
+[data-design="mr"] .round-btn:hover { filter: brightness(1.08); }
+[data-design="mr"] .round-btn.call, [data-design="mr"] .round-btn.hangup { box-shadow: 0 1px 2px rgb(0 0 0 / 0.2); }
+[data-design="mr"] .round-btn.call { background: var(--green); }
+[data-design="mr"] .round-btn.hangup { background: var(--red); }
+[data-design="mr"] #callBtn { width: 274px; height: 48px; border-radius: 10px; font-size: 22px; }
+[data-design="mr"] .round-btn.secondary {
+  background: var(--card); border: 1px solid var(--line); color: var(--text);
+}
+[data-design="mr"] .round-btn.secondary:hover { filter: none; background: color-mix(in oklab, var(--text) 6%, var(--card)); }
+[data-design="mr"] .round-btn.secondary.active { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+[data-design="mr"] .call-controls .round-btn { border-radius: 10px; }
+
+/* Vorschläge beim Tippen */
+[data-design="mr"] .suggest {
+  border-radius: 8px; background: var(--popover);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.35);
+}
+[data-design="mr"] .suggest-item:hover { background: var(--overlay); }
+
+/* --- Listen: Verlauf, Kontakte, Kurzwahl --- */
+[data-design="mr"] .entry, [data-design="mr"] .favorite { padding-left: 6px; padding-right: 6px; border-radius: 6px; }
+[data-design="mr"] .entry-dir { color: var(--green); }
+[data-design="mr"] .entry.out .entry-dir { color: var(--muted); }
+[data-design="mr"] .contact-avatar, [data-design="mr"] .avatar {
+  background: var(--logo); color: #18181b;
+}
+[data-design="mr"] .contact-avatar { border-radius: 8px; font-size: 12px; }
+[data-design="mr"] .contact-number { border-radius: 6px; }
+[data-design="mr"] .contact-number:hover { background: var(--overlay); }
+[data-design="mr"] .contact-fav.on svg { color: var(--accent); }
+[data-design="mr"] .favorite[data-state="away"] .fav-dot { border-color: var(--amber); }
+[data-design="mr"] .speeddial-title { font-size: 13px; }
+[data-design="mr"] .pager .icon-btn { width: 28px; height: 28px; font-size: 20px; }
+[data-design="mr"] .import-option { border-radius: 8px; }
+[data-design="mr"] .import-option:hover { border-color: var(--accent); }
+
+/* --- Eingabefelder wie .input aus packages/ui --- */
+[data-design="mr"] .contacts-bar input,
+[data-design="mr"] .account-form input,
+[data-design="mr"] .transfer-bar input,
+[data-design="mr"] dialog select,
+[data-design="mr"] .line-row select,
+[data-design="mr"] dialog input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+  height: 32px; padding: 0 10px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+  font: inherit; font-size: 14px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+[data-design="mr"] .contacts-bar input:focus,
+[data-design="mr"] .account-form input:focus,
+[data-design="mr"] .transfer-bar input:focus,
+[data-design="mr"] dialog select:focus,
+[data-design="mr"] .line-row select:focus,
+[data-design="mr"] dialog input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 25%, transparent);
+}
+[data-design="mr"] #number:focus { border-bottom-color: var(--accent); }
+[data-design="mr"] .account-form label, [data-design="mr"] dialog label { font-size: 12px; font-weight: 500; }
+[data-design="mr"] dialog label.check { font-size: 14px; font-weight: 400; }
+[data-design="mr"] .account-form h2 { font-size: 16px; font-weight: 600; }
+[data-design="mr"] .check input, [data-design="mr"] .volume-row input[type="range"] { accent-color: var(--accent); }
+
+/* --- Knöpfe wie .btn aus packages/ui --- */
+[data-design="mr"] .text-btn {
+  height: 32px; padding: 0 12px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--card); color: var(--text);
+  font-size: 14px; font-weight: 500;
+  transition: background 0.15s, border-color 0.15s;
+}
+[data-design="mr"] .text-btn:hover { background: color-mix(in oklab, var(--text) 5%, var(--card)); }
+[data-design="mr"] .text-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+[data-design="mr"] .text-btn.primary:hover { background: color-mix(in oklab, var(--accent) 85%, var(--card)); }
+[data-design="mr"] .text-btn.danger { color: var(--red); border-color: var(--line); }
+[data-design="mr"] .text-btn.danger:hover { background: color-mix(in oklab, var(--red) 10%, transparent); }
+[data-design="mr"] .text-btn.small-btn { height: 28px; padding: 0 10px; border-radius: 6px; font-size: 13px; }
+[data-design="mr"] .update-bar .text-btn, [data-design="mr"] .contacts-bar .text-btn { padding: 0 12px; }
+[data-design="mr"] .card-add { color: var(--accent-text); font-weight: 500; }
+[data-design="mr"] .card-add:hover { background: var(--overlay); }
+
+/* --- Gespräch --- */
+[data-design="mr"] .avatar { border-radius: 24px; font-size: 36px; }
+[data-design="mr"] .avatar.ringing::before, [data-design="mr"] .avatar.ringing::after {
+  border-radius: 24px; border-color: color-mix(in oklab, var(--accent) 60%, transparent);
+}
+[data-design="mr"] #callName { font-size: 22px; }
+[data-design="mr"] .call-line { color: var(--accent-text); }
+[data-design="mr"] .conf-list { border-radius: 8px; }
+
+/* --- Dialoge wie Dialog aus packages/ui --- */
+[data-design="mr"] dialog {
+  padding: 18px 20px; border-radius: 12px;
+  background: var(--card); box-shadow: 0 24px 48px rgb(0 0 0 / 0.35);
+}
+[data-design="mr"] dialog::backdrop { background: rgb(0 0 0 / 0.55); backdrop-filter: none; }
+[data-design="mr"] dialog h2 { margin-bottom: 14px; font-size: 16px; font-weight: 600; }
+[data-design="mr"] #settings .dialog-actions { background: var(--card); bottom: -18px; margin-bottom: -18px; padding-bottom: 18px; }
+[data-design="mr"] .card-list { border-radius: 8px; background: var(--bg); }
+[data-design="mr"] .card-row { min-height: 44px; padding: 6px 12px; }
+[data-design="mr"] .meter { background: var(--overlay); }
+[data-design="mr"] .gate-card { border-radius: 12px; background: var(--card); }
+[data-design="mr"] .gate-card svg { color: var(--accent); }
+
+/* --- Hinweise wie Toaster aus packages/ui --- */
+[data-design="mr"] .toast {
+  border-radius: 8px; padding: 10px 14px;
+  background: var(--popover); box-shadow: 0 12px 28px rgb(0 0 0 / 0.35);
+}
+[data-design="mr"] .toast.error { border-color: color-mix(in oklab, var(--red) 45%, transparent); color: var(--danger); }

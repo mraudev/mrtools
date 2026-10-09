@@ -33,7 +33,10 @@ src-tauri/src/
   logger.rs        Protokoll sipphone.log im Datenordner
 ```
 
-Die Oberfläche bleibt unverändert; nur die Brücke `window.phone` ist neu. Audio (Mikrofon, Geräteauswahl,
+Die Oberfläche ist die der Electron-Version, nur die Brücke `window.phone` ist neu. Dazu kommt das Design
+„mrtools“ (`public/mr.css`, Standard) im Aussehen der übrigen mr-Apps; das bisherige Design bleibt unter
+Einstellungen → Allgemein → Design als „Klassisch“ wählbar. Logo: `assets/logo.svg` (wie die anderen Apps,
+Icons mit `npx tauri icon assets/logo.svg -o src-tauri/icons`). Audio (Mikrofon, Geräteauswahl,
 AudioWorklet) läuft weiter in der WebView (WebView2 = Chromium).
 
 ## Stand

@@ -80,34 +80,55 @@
 
   // Eigene Titelleiste: Die Kopfzeile der Oberfläche zieht das Fenster (app-region: drag, wie in der
   // Electron-Version). Die Fenster-Knöpfe zeichnet in Electron Windows selbst – hier diese Brücke, an
-  // derselben Stelle und im Stil von Windows 11 (Minimieren und Schließen legen die App ins Tray).
-  const GLYPHS = { minimize: '', maximize: '', restore: '', close: '' };
+  // derselben Stelle: im klassischen Design im Stil von Windows 11 (Schrift Segoe Fluent Icons), im Design
+  // „mrtools“ wie WindowControls aus packages/ui (Lucide-Symbole). Minimieren und Schließen legen ins Tray.
+  const GLYPHS = { minimize: '\uE921', maximize: '\uE922', restore: '\uE923', close: '\uE8BB' };
+  const LUCIDE = {
+    minimize: '<path d="M5 12h14"/>',
+    maximize: '<rect width="18" height="18" x="3" y="3" rx="2"/>',
+    restore: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+    close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  };
   const addWindowControls = () => {
     const style = document.createElement('style');
     style.textContent = `
       html .topbar { margin-right: 122px; }
       .window-controls { position: fixed; top: 0; right: 0; z-index: 10; display: flex; height: 44px; -webkit-app-region: no-drag; }
-      .window-controls button { width: 46px; height: 100%; border: 0; border-radius: 0; padding: 0; margin: 0; background: transparent;
-        color: var(--text); font: 10px 'Segoe Fluent Icons', 'Segoe MDL2 Assets'; cursor: default; }
+      .window-controls button { display: grid; place-items: center; width: 46px; height: 100%; border: 0; border-radius: 0; padding: 0; margin: 0;
+        background: transparent; color: var(--text); font: 10px 'Segoe Fluent Icons', 'Segoe MDL2 Assets'; cursor: default; }
       .window-controls button:hover { background: var(--overlay); }
       .window-controls button:active { background: var(--overlay-strong); }
       .window-controls button.close:hover { background: #c42b1c; color: #fff; }
-      .window-controls button.close:active { background: #c84031; color: #fff; }`;
+      .window-controls button.close:active { background: #c84031; color: #fff; }
+      .window-controls svg { display: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;
+        stroke-linecap: round; stroke-linejoin: round; }
+      [data-design="mr"] .window-controls { border-left: 1px solid var(--line); }
+      [data-design="mr"] .window-controls button { width: 44px; color: var(--muted); transition: background 0.15s, color 0.15s; }
+      [data-design="mr"] .window-controls button:hover { background: var(--overlay); color: var(--text); }
+      [data-design="mr"] .window-controls button.close:hover, [data-design="mr"] .window-controls button.close:active { background: #dc2626; color: #fff; }
+      [data-design="mr"] .window-controls .glyph { display: none; }
+      [data-design="mr"] .window-controls svg { display: block; }
+      [data-design="mr"] .window-controls .maximize svg { width: 14px; height: 14px; }
+      [data-design="mr"] .window-controls .maximize.restored svg { transform: scaleX(-1); }`;
     document.head.append(style);
     const bar = document.createElement('div');
     bar.className = 'window-controls';
+    const icon = (b, action) => {
+      b.innerHTML = `<span class="glyph">${GLYPHS[action]}</span><svg viewBox="0 0 24 24" aria-hidden="true">${LUCIDE[action]}</svg>`;
+    };
     const button = (action, label) => {
       const b = document.createElement('button');
       b.className = action;
       b.title = label;
       b.setAttribute('aria-label', label);
-      b.textContent = GLYPHS[action];
+      icon(b, action);
       b.onclick = async () => setMaximized(await invoke('window_control', { action }));
       return b;
     };
     const max = button('maximize', 'Maximieren');
     const setMaximized = (on) => {
-      max.textContent = on ? GLYPHS.restore : GLYPHS.maximize;
+      icon(max, on ? 'restore' : 'maximize');
+      max.classList.toggle('restored', on);
       max.title = on ? 'Verkleinern' : 'Maximieren';
       max.setAttribute('aria-label', max.title);
     };

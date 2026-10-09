@@ -351,7 +351,10 @@ pub fn set_audio(state: State<'_, AppState>, audio: Value) {
 pub fn get_options(state: State<'_, AppState>) -> Value {
     let cfg = state.cfg.lock().unwrap();
     let mut out = json!({});
-    for k in OPTION_KEYS.iter().chain(["ringtonePreset", "theme"].iter()) {
+    for k in OPTION_KEYS
+        .iter()
+        .chain(["ringtonePreset", "theme", "design"].iter())
+    {
         out[*k] = cfg[*k].clone();
     }
     out
@@ -374,6 +377,13 @@ pub fn set_options(app: AppHandle, state: State<'_, AppState>, options: Value) {
     {
         cfg["theme"] = json!(theme);
         apply_theme(&app, theme);
+    }
+    // Design: „mrtools“ wie die anderen mr-Apps oder das klassische
+    if let Some(design) = options["design"]
+        .as_str()
+        .filter(|d| ["mr", "classic"].contains(d))
+    {
+        cfg["design"] = json!(design);
     }
     // Welche Töne es gibt, weiß nur die Oberfläche (RINGTONES) – hier nur das Format prüfen.
     if let Some(p) = options["ringtonePreset"]

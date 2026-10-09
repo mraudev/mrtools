@@ -3,6 +3,22 @@
 const $ = (id) => document.getElementById(id);
 const IS_WIN = window.phone.platform === 'win32';
 
+// Design: „mrtools“ (wie die anderen mr-Apps, mr.css) oder „Klassisch“. Das zuletzt gewählte gilt sofort
+// (kein Aufblitzen des anderen), maßgeblich ist die Einstellung in config.json.
+function applyDesign(design) {
+  const value = design === 'classic' ? 'classic' : 'mr';
+  document.documentElement.dataset.design = value;
+  try {
+    localStorage.setItem('design', value);
+  } catch {}
+  return value;
+}
+let cachedDesign = null;
+try {
+  cachedDesign = localStorage.getItem('design');
+} catch {}
+applyDesign(cachedDesign);
+
 const REG_LABELS = {
   idle: 'Starte …',
   registering: 'Verbinde …',
@@ -1966,6 +1982,7 @@ $('headsetAnswer').onchange = async () => {
 };
 $('connectHeadset').onclick = connectHeadset;
 $('themeSelect').onchange = () => window.phone.setOptions({ theme: $('themeSelect').value });
+$('designSelect').onchange = () => window.phone.setOptions({ design: applyDesign($('designSelect').value) });
 $('gateBtn').onclick = unlockAudio;
 for (const id of ['micSelect', 'speakerSelect', 'ringerSelect', 'spkMicSelect', 'spkSpeakerSelect']) $(id).onchange = onDeviceChange;
 $('testSpeaker').onclick = () => testTone('ringback');
@@ -2039,6 +2056,7 @@ window.phone.onAudioFormat((fmt) => {
     ringtonePreset = options.ringtonePreset || 'standard';
     renderRingtoneSelect();
     $('themeSelect').value = options.theme || 'system';
+    $('designSelect').value = applyDesign(options.design);
     await refreshDevices();
     await initAudio();
     await loadRingtone();
