@@ -1,7 +1,7 @@
 {
   "name": "mrtools",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Übersicht und Starter für die eigenen Apps",
   "author": "Michael Rau <dev@mraudev.com>",
   "type": "module",
