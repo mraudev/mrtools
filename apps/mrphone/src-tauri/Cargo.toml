@@ -22,10 +22,11 @@ serde = "1"
 serde_json = "1"
 base64 = "0.22"
 aes-gcm = "0.10"
+scrypt = { version = "0.11", default-features = false }
 uuid = { version = "1", features = ["v4"] }
 webview2-com = "0.39"
 windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_SystemInformation"] }
 md-5 = "0.10"
 opus = "0.3"
-tokio = { version = "1", features = ["net", "rt", "time", "sync", "macros"] }
+tokio = { version = "1", features = ["net", "rt", "time", "sync", "macros", "process", "io-util"] }
 windows-core = "0.62"

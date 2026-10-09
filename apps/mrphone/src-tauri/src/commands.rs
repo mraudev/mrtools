@@ -1,15 +1,23 @@
-// Befehle hinter window.phone (src-tauri/src/bridge.js). Entsprechen den ipcMain-Handlern in src/main.js;
-// Telefonie (SIP, Gespräche), CTI, Importe und Sicherung folgen in späteren Stufen.
+// Befehle hinter window.phone (src-tauri/src/bridge.js). Entsprechen den ipcMain-Handlern in src/main.js.
 use crate::{
-    config,
+    backup, config,
     contacts::Contacts,
+    cti,
     history::History,
+    imports,
     phone::{PhoneCmd, PhoneHandle},
     secrets::OsCrypt,
 };
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use serde_json::{json, Value};
-use std::{path::PathBuf, sync::Mutex};
+use std::{
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
+    time::Duration,
+};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
@@ -20,6 +28,9 @@ pub struct AppState {
     pub contacts: Mutex<Contacts>,
     pub history: Mutex<History>,
     pub phone: PhoneHandle,
+    pub cti: Mutex<Vec<(String, cti::Client)>>, // Konto-ID -> Client (nur Konten mit CTI-Server)
+    pub cti_pending: AtomicBool,
+    pub backup_file: Mutex<Option<PathBuf>>, // gewählte Sicherung, bis das Passwort eingegeben ist
 }
 
 const OPTION_KEYS: [&str; 6] = [
@@ -132,10 +143,132 @@ pub async fn command(state: State<'_, AppState>, msg: Value) -> Result<Value, ()
         "completeTransfer" => phone.send(PhoneCmd::CompleteTransfer),
         "cancelConsult" => phone.send(PhoneCmd::CancelConsult),
         // „Neu verbinden“ / „Übernehmen“: alle Konten anmelden, auch ruhende
-        "register" => phone.send(PhoneCmd::Register),
+        "register" => {
+            phone.send(PhoneCmd::Register);
+            state
+                .cti
+                .lock()
+                .unwrap()
+                .iter()
+                .for_each(|(_, c)| c.retry());
+        }
+        kind @ ("dnd" | "away") => {
+            if let Err(err) = set_cti_flag(&state, kind, msg["on"].as_bool().unwrap_or(false)) {
+                return Ok(error(err));
+            }
+        }
         _ => {}
     }
     Ok(Value::Null)
+}
+
+// --- CTI-Server (optional je Konto): Nicht stören, Abwesend, Status der Kurzwahl, Konferenzteilnehmer ---
+
+// Verbindungen passend zu den Konten starten/stoppen; neu verbunden wird nur bei geänderten Angaben.
+pub fn sync_cti(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let accounts = state.cfg.lock().unwrap()["accounts"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let wanted = |a: &Value| {
+        let (host, user) = (text(&a["ctiHost"]), text(&a["ctiUser"]));
+        let port = match number(&a["ctiPort"]) {
+            0 => 1337,
+            p => p as u16,
+        };
+        (!host.is_empty() && !user.is_empty()).then_some((host, port, user))
+    };
+    {
+        let mut ctis = state.cti.lock().unwrap();
+        ctis.retain(|(id, c)| {
+            let keep = accounts
+                .iter()
+                .find(|a| text(&a["id"]) == *id)
+                .and_then(wanted)
+                .is_some_and(|(h, p, u)| h == c.host && p == c.port && u == c.user);
+            if !keep {
+                c.stop();
+            }
+            keep
+        });
+        for a in &accounts {
+            let id = text(&a["id"]);
+            let Some((host, port, user)) = wanted(a) else {
+                continue;
+            };
+            if ctis.iter().any(|(i, _)| *i == id) {
+                continue;
+            }
+            let handle = app.clone();
+            let on_change = Arc::new(move || cti_changed(&handle));
+            ctis.push((
+                id,
+                cti::Client::start(host, port, user, text(&a["label"]), on_change),
+            ));
+        }
+    }
+    cti_changed(app);
+}
+
+// Nach der Anmeldung kommt je Telefon ein Event -> gesammelt (50 ms) ans Fenster schicken.
+fn cti_changed(app: &AppHandle) {
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+    if state.cti_pending.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let state = app.state::<AppState>();
+        state.cti_pending.store(false, Ordering::SeqCst);
+        let _ = app.emit("phone:cti", cti_view(&state));
+    });
+}
+
+fn cti_view(state: &AppState) -> Value {
+    let favorites: Vec<String> = state.cfg.lock().unwrap()["favorites"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .map(|f| text(&f["number"]))
+        .collect();
+    let ctis = state.cti.lock().unwrap();
+    let contacts = state.contacts.lock().unwrap();
+    cti::view(&ctis, &favorites, &|n| contacts.lookup(n))
+}
+
+// Nicht stören / Abwesend: gilt für alle Konten, deren CTI-Server verbunden ist.
+fn set_cti_flag(state: &AppState, kind: &str, on: bool) -> Result<(), String> {
+    let ctis = state.cti.lock().unwrap();
+    let connected: Vec<&cti::Client> = ctis
+        .iter()
+        .map(|(_, c)| c)
+        .filter(|c| c.connected())
+        .collect();
+    if connected.is_empty() {
+        return Err("CTI-Server nicht verbunden".into());
+    }
+    for c in connected {
+        if kind == "dnd" {
+            c.set_dnd(on);
+        } else {
+            c.set_away(on);
+        }
+    }
+    Ok(())
+}
+
+pub fn stop_cti(state: &AppState) {
+    state.cti.lock().unwrap().iter().for_each(|(_, c)| c.stop());
+}
+
+#[tauri::command]
+pub fn get_cti(state: State<'_, AppState>) -> Value {
+    cti_view(&state)
 }
 
 // Mikrofon-Audio aus der Oberfläche: Int16 (Little Endian) als Binärpaket.
@@ -182,11 +315,6 @@ impl crate::phone::Hooks for AppHooks {
         let _ = state.history.lock().unwrap().add(reason, &call);
         let _ = self.0.emit("phone:historyChanged", history_view(&state));
     }
-}
-
-#[tauri::command]
-pub fn not_yet(what: String) -> Value {
-    error(format!("{what} kommt in Stufe 4 der Tauri-Version."))
 }
 
 #[tauri::command]
@@ -246,7 +374,13 @@ pub fn get_accounts(state: State<'_, AppState>) -> Value {
 
 // Legt ein Konto an (ohne id) oder ändert ein bestehendes – wie saveAccount() in src/main.js.
 #[tauri::command]
-pub fn save_account(state: State<'_, AppState>, data: Value) -> Value {
+pub fn save_account(app: AppHandle, state: State<'_, AppState>, data: Value) -> Value {
+    let result = store_account(&state, &data);
+    sync_cti(&app);
+    result
+}
+
+fn store_account(state: &AppState, data: &Value) -> Value {
     let field = |name: &str| text(&data[name]).trim().to_string();
     let (username, domain) = (field("username"), field("domain"));
     if username.is_empty() || domain.is_empty() {
@@ -326,15 +460,40 @@ pub fn save_account(state: State<'_, AppState>, data: Value) -> Value {
 }
 
 #[tauri::command]
-pub fn delete_account(state: State<'_, AppState>, id: String) -> Value {
-    let mut cfg = state.cfg.lock().unwrap();
-    cfg["accounts"]
-        .as_array_mut()
-        .unwrap()
-        .retain(|a| text(&a["id"]) != id);
-    state.persist(&cfg);
+pub fn delete_account(app: AppHandle, state: State<'_, AppState>, id: String) -> Value {
+    let view = {
+        let mut cfg = state.cfg.lock().unwrap();
+        cfg["accounts"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|a| text(&a["id"]) != id);
+        state.persist(&cfg);
+        accounts_view(&cfg)
+    };
     state.phone.send(PhoneCmd::Remove(id)); // meldet vorher ab
-    json!({ "accounts": accounts_view(&cfg) })
+    sync_cti(&app);
+    json!({ "accounts": view })
+}
+
+// PhonerLite-Konto aus einer gewählten sipper.ini vorbelegen (ohne Passwort – das ist verschlüsselt).
+#[tauri::command]
+pub async fn import_phonerlite(app: AppHandle) -> Result<Value, ()> {
+    let picked = app
+        .dialog()
+        .file()
+        .set_title("PhonerLite-Konfiguration (sipper.ini) wählen")
+        .add_filter("PhonerLite-Konfiguration", &["ini"])
+        .blocking_pick_file();
+    let Some(path) = picked.and_then(|p| p.into_path().ok()) else {
+        return Ok(Value::Null);
+    };
+    Ok(match std::fs::read(&path) {
+        Err(err) => error(err.to_string()),
+        Ok(bytes) => match config::parse_phonerlite(&String::from_utf8_lossy(&bytes)) {
+            Some(account) => json!({ "account": account }),
+            None => error("In der Datei wurde kein SIP-Konto gefunden."),
+        },
+    })
 }
 
 // --- Klingelton: eigene Datei wird in den Datenordner kopiert ---
@@ -461,12 +620,275 @@ pub fn get_favorites(state: State<'_, AppState>) -> Value {
 }
 
 #[tauri::command]
-pub fn save_favorites(state: State<'_, AppState>, list: Value) -> Value {
+pub fn save_favorites(app: AppHandle, state: State<'_, AppState>, list: Value) -> Value {
     let mut cfg = state.cfg.lock().unwrap();
     let favorites = config::normalize_favorites(&list);
     let numbers = favorites.iter().map(|f| text(&f["number"])).collect();
     cfg["favorites"] = json!(favorites);
     state.persist(&cfg);
     state.phone.send(PhoneCmd::SetFavorites(numbers));
+    cti_changed(&app);
     json!({ "list": cfg["favorites"] })
+}
+
+// --- Kontakte importieren/exportieren ---
+
+fn merge_imported(app: &AppHandle, state: &AppState, found: &[Value], source: &str) -> Value {
+    let result = state.contacts.lock().unwrap().merge(found, source);
+    contacts_changed(app, state);
+    match result {
+        Ok(mut r) => {
+            r["found"] = json!(found.len());
+            r
+        }
+        Err(err) => error(err.to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn import_outlook(app: AppHandle, state: State<'_, AppState>) -> Result<Value, ()> {
+    Ok(match imports::outlook_contacts().await {
+        Err(err) => error(err),
+        Ok(found) if found.is_empty() => error("Im klassischen Outlook wurden keine Kontakte mit Telefonnummer gefunden. Liegen sie im neuen Outlook oder bei Outlook.com, dort als CSV exportieren und die Datei importieren."),
+        Ok(found) => merge_imported(&app, &state, &found, "outlook"),
+    })
+}
+
+#[tauri::command]
+pub async fn import_csv(app: AppHandle, state: State<'_, AppState>) -> Result<Value, ()> {
+    let picked = app
+        .dialog()
+        .file()
+        .set_title("Kontakte-CSV wählen")
+        .add_filter("CSV-Dateien", &["csv", "txt"])
+        .blocking_pick_file();
+    let Some(path) = picked.and_then(|p| p.into_path().ok()) else {
+        return Ok(Value::Null);
+    };
+    let found = std::fs::read(&path)
+        .map_err(|e| e.to_string())
+        .and_then(|bytes| imports::read_contacts_csv(&bytes));
+    Ok(match found {
+        Err(err) => error(err),
+        Ok(found) if found.is_empty() => {
+            error("In der Datei wurden keine Kontakte mit Telefonnummer gefunden.")
+        }
+        Ok(found) => merge_imported(&app, &state, &found, "csv"),
+    })
+}
+
+#[tauri::command]
+pub async fn export_csv(app: AppHandle, state: State<'_, AppState>) -> Result<Value, ()> {
+    let picked = app
+        .dialog()
+        .file()
+        .set_title("Kontakte als CSV exportieren")
+        .set_file_name("kontakte.csv")
+        .add_filter("CSV-Dateien", &["csv"])
+        .blocking_save_file();
+    let Some(path) = picked.and_then(|p| p.into_path().ok()) else {
+        return Ok(Value::Null);
+    };
+    let (csv, count) = {
+        let contacts = state.contacts.lock().unwrap();
+        (
+            imports::contacts_to_csv(&contacts.entries),
+            contacts.entries.len(),
+        )
+    };
+    // BOM voran, damit Excel Umlaute als UTF-8 erkennt.
+    Ok(match std::fs::write(&path, format!("\u{feff}{csv}")) {
+        Ok(()) => json!({ "count": count }),
+        Err(err) => error(err.to_string()),
+    })
+}
+
+// --- Sicherung: alles verschlüsselt exportieren und auf einem anderen mrphone wieder einspielen ---
+
+// .sipphone: Sicherungen von vor der Umbenennung (gleiches Format)
+const BACKUP_TYPES: [&str; 2] = ["mrphone", "sipphone"];
+
+#[tauri::command]
+pub async fn export_backup(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    password: String,
+) -> Result<Value, ()> {
+    if password.chars().count() < backup::MIN_PASSWORD {
+        return Ok(error(format!(
+            "Das Passwort braucht mindestens {} Zeichen.",
+            backup::MIN_PASSWORD
+        )));
+    }
+    let created = backup::iso_now();
+    let picked = app
+        .dialog()
+        .file()
+        .set_title("Sicherung speichern")
+        .set_file_name(format!("mrphone-Sicherung-{}.mrphone", &created[..10]))
+        .add_filter("mrphone-Sicherung", &BACKUP_TYPES)
+        .blocking_save_file();
+    let Some(path) = picked.and_then(|p| p.into_path().ok()) else {
+        return Ok(Value::Null);
+    };
+    let payload = {
+        let cfg = state.cfg.lock().unwrap();
+        let mut settings = cfg.clone();
+        let obj = settings.as_object_mut().unwrap();
+        obj.remove("audio"); // Audiogeräte heißen auf jedem PC anders -> bleiben außen vor
+                             // Zugangsdaten im Klartext – geschützt durch die Verschlüsselung der Sicherung. Die DPAPI-Felder
+                             // (*Enc) taugen auf einem anderen PC nicht.
+        for a in obj
+            .get_mut("accounts")
+            .and_then(Value::as_array_mut)
+            .into_iter()
+            .flatten()
+        {
+            if let Some(a) = a.as_object_mut() {
+                a.remove("passwordEnc");
+                a.remove("ha1Enc");
+            }
+        }
+        let ringtone = ringtone_path(&state, &cfg).and_then(|p| {
+            let data = std::fs::read(&p).ok()?;
+            let ext = p.extension()?.to_string_lossy().to_string();
+            Some(json!({ "name": cfg["ringtone"]["name"], "ext": ext, "data": B64.encode(data) }))
+        });
+        json!({
+            "app": "mrphone",
+            "version": env!("CARGO_PKG_VERSION"),
+            "createdAt": created,
+            "config": settings,
+            "contacts": state.contacts.lock().unwrap().entries,
+            "history": state.history.lock().unwrap().entries,
+            "ringtone": ringtone,
+        })
+    };
+    let counts = (
+        payload["config"]["accounts"].as_array().map_or(0, Vec::len),
+        payload["contacts"].as_array().map_or(0, Vec::len),
+        payload["history"].as_array().map_or(0, Vec::len),
+    );
+    let sealed = tauri::async_runtime::spawn_blocking(move || backup::encrypt(&payload, &password))
+        .await
+        .unwrap_or_else(|e| Err(e.to_string()));
+    let result = sealed.and_then(|bytes| std::fs::write(&path, bytes).map_err(|e| e.to_string()));
+    Ok(match result {
+        Ok(()) => {
+            crate::logger::info(&format!(
+                "Sicherung exportiert: Konten {}, Kontakte {}, Verlaufseinträge {}",
+                counts.0, counts.1, counts.2
+            ));
+            json!({ "file": path.file_name().map(|n| n.to_string_lossy().to_string()) })
+        }
+        Err(err) => error(err),
+    })
+}
+
+#[tauri::command]
+pub async fn choose_backup(app: AppHandle, state: State<'_, AppState>) -> Result<Value, ()> {
+    let picked = app
+        .dialog()
+        .file()
+        .set_title("Sicherung wählen")
+        .add_filter("mrphone-Sicherung", &BACKUP_TYPES)
+        .blocking_pick_file();
+    let Some(path) = picked.and_then(|p| p.into_path().ok()) else {
+        return Ok(Value::Null);
+    };
+    let name = path.file_name().map(|n| n.to_string_lossy().to_string());
+    *state.backup_file.lock().unwrap() = Some(path);
+    Ok(json!({ "file": name }))
+}
+
+// Ersetzt Konten, Kontakte, Kurzwahl, Verlauf und Einstellungen durch die Sicherung (Audiogeräte bleiben).
+#[tauri::command]
+pub async fn import_backup(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    password: String,
+) -> Result<Value, ()> {
+    let Some(path) = state.backup_file.lock().unwrap().clone() else {
+        return Ok(error("Bitte zuerst eine Sicherung wählen."));
+    };
+    if !state.phone.snapshot.lock().unwrap()["call"].is_null() {
+        return Ok(error("Während eines Gesprächs nicht möglich."));
+    }
+    let data = tauri::async_runtime::spawn_blocking(move || {
+        let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+        backup::decrypt(&bytes, &password)
+    })
+    .await
+    .unwrap_or_else(|e| Err(e.to_string()));
+    let data = match data {
+        Ok(d) => d,
+        Err(err) => return Ok(error(err)),
+    };
+    if !data["config"]["accounts"].is_array() {
+        return Ok(error("Die Sicherung ist unvollständig."));
+    }
+    *state.backup_file.lock().unwrap() = None;
+
+    let (accounts, favorites, theme, hd) = {
+        let mut cfg = state.cfg.lock().unwrap();
+        for a in cfg["accounts"].as_array().cloned().unwrap_or_default() {
+            state.phone.send(PhoneCmd::Remove(text(&a["id"]))); // meldet ab
+        }
+        let mut next = config::normalize(&config::merge(
+            &data["config"],
+            &json!({ "audio": cfg["audio"] }),
+        ));
+        if let Some(old) = ringtone_path(&state, &cfg) {
+            let _ = std::fs::remove_file(old);
+        }
+        next["ringtone"] = Value::Null;
+        let rt = &data["ringtone"];
+        let ext = text(&rt["ext"]);
+        if let (true, Some(b64)) = (RINGTONE_TYPES.contains(&ext.as_str()), rt["data"].as_str()) {
+            let buf = B64.decode(b64).unwrap_or_default();
+            if !buf.is_empty() && buf.len() as u64 <= RINGTONE_MAX_BYTES {
+                let file = format!("ringtone.{ext}");
+                if std::fs::write(state.dir.join(&file), buf).is_ok() {
+                    let name = if text(&rt["name"]).is_empty() {
+                        file.clone()
+                    } else {
+                        text(&rt["name"])
+                    };
+                    next["ringtone"] = json!({ "file": file, "name": name });
+                }
+            }
+        }
+        *cfg = next;
+        state.persist(&cfg); // Zugangsdaten auf diesem PC wieder per DPAPI verschlüsselt
+        (
+            cfg["accounts"].as_array().cloned().unwrap_or_default(),
+            cfg["favorites"].as_array().cloned().unwrap_or_default(),
+            text(&cfg["theme"]),
+            cfg["hdVoice"].as_bool().unwrap_or(true),
+        )
+    };
+    let _ = state.contacts.lock().unwrap().replace(&data["contacts"]);
+    let _ = state
+        .history
+        .lock()
+        .unwrap()
+        .replace(data["history"].as_array().cloned().unwrap_or_default());
+
+    state.phone.presence.lock().unwrap().clear();
+    apply_theme(&app, &theme);
+    state.phone.send(PhoneCmd::SetHd(hd));
+    for account in &accounts {
+        state.phone.send(PhoneCmd::Add(account.clone()));
+    }
+    state.phone.send(PhoneCmd::SetFavorites(
+        favorites.iter().map(|f| text(&f["number"])).collect(),
+    ));
+    sync_cti(&app);
+    let contacts = state.contacts.lock().unwrap().entries.len();
+    crate::logger::info(&format!(
+        "Sicherung importiert: Konten {}, Kontakte {contacts}, Verlaufseinträge {}",
+        accounts.len(),
+        state.history.lock().unwrap().entries.len()
+    ));
+    Ok(json!({ "accounts": accounts.len(), "contacts": contacts }))
 }

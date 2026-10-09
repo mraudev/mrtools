@@ -1,9 +1,12 @@
-// mrphone – Tauri-Version (im Aufbau; Stufe 2: zusätzlich SIP-Anmeldung und Besetztlampenfeld).
+// mrphone – Tauri-Version (im Aufbau; Stufe 4: Telefonie, CTI, Sicherung, Importe).
 // Die Oberfläche (public/) ist dieselbe wie in der Electron-Version; bridge.js stellt window.phone bereit.
+mod backup;
 mod commands;
 mod config;
 mod contacts;
+mod cti;
 mod history;
+mod imports;
 mod logger;
 mod paths;
 mod phone;
@@ -111,7 +114,11 @@ pub fn run() {
                 cfg: Mutex::new(cfg),
                 crypt,
                 dir,
+                cti: Mutex::new(Vec::new()),
+                cti_pending: AtomicBool::new(false),
+                backup_file: Mutex::new(None),
             });
+            commands::sync_cti(app.handle());
             let window =
                 WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                     .title("mrphone")
@@ -128,7 +135,6 @@ pub fn run() {
             commands::command,
             commands::audio_in,
             commands::audio_subscribe,
-            commands::not_yet,
             commands::get_audio,
             commands::set_audio,
             commands::get_options,
@@ -136,6 +142,7 @@ pub fn run() {
             commands::get_accounts,
             commands::save_account,
             commands::delete_account,
+            commands::import_phonerlite,
             commands::get_ringtone,
             commands::choose_ringtone,
             commands::reset_ringtone,
@@ -148,6 +155,13 @@ pub fn run() {
             commands::clear_history,
             commands::get_favorites,
             commands::save_favorites,
+            commands::get_cti,
+            commands::import_outlook,
+            commands::import_csv,
+            commands::export_csv,
+            commands::export_backup,
+            commands::choose_backup,
+            commands::import_backup,
         ])
         .build(tauri::generate_context!())
         .expect("mrphone konnte nicht starten")
@@ -158,6 +172,7 @@ pub fn run() {
                     return;
                 }
                 api.prevent_exit();
+                commands::stop_cti(&app.state::<AppState>());
                 let phone = app.state::<AppState>().phone.clone();
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {

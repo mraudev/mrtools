@@ -127,6 +127,83 @@ pub fn normalize_favorites(list: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+// INI wie parseIni in src/config.js: Abschnitte -> (Schlüssel, Wert), Reihenfolge wie in der Datei.
+type Ini = Vec<(String, Vec<(String, String)>)>;
+
+fn parse_ini(text: &str) -> Ini {
+    let mut sections: Ini = Vec::new();
+    for raw in text.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if line.len() > 2 && line.starts_with('[') && line.ends_with(']') {
+            sections.push((line[1..line.len() - 1].to_string(), Vec::new()));
+            continue;
+        }
+        if let (Some(i), Some(current)) = (line.find('=').filter(|&i| i > 0), sections.last_mut()) {
+            current
+                .1
+                .push((line[..i].to_string(), line[i + 1..].to_string()));
+        }
+    }
+    sections
+}
+
+// PhonerLite-Konto aus sipper.ini (ohne Passwort – das ist an die AppGUID gebunden verschlüsselt).
+// Aktives Konto steht in [Profile] Profile=<Name>, die Daten im gleichnamigen Abschnitt.
+pub fn parse_phonerlite(text: &str) -> Option<Value> {
+    let ini = parse_ini(text);
+    let get = |section: &[(String, String)], key: &str| {
+        section
+            .iter()
+            .rev()
+            .find(|(k, _)| k.eq_ignore_ascii_case(key))
+            .map(|(_, v)| v.clone())
+    };
+    let profile = ini
+        .iter()
+        .rev()
+        .find(|(name, _)| name == "Profile")
+        .and_then(|(_, s)| get(s, "profile"));
+    let section = profile
+        .as_ref()
+        .and_then(|p| ini.iter().rev().find(|(name, _)| name == p))
+        .or_else(|| {
+            ini.iter()
+                .find(|(name, _)| !name.eq_ignore_ascii_case("profile"))
+        })?;
+    let user_field = get(&section.1, "username").filter(|u| !u.is_empty())?;
+    let mut parts = user_field.split('|');
+    let username = parts.next().unwrap_or_default().trim().to_string();
+    let auth = parts.next().map(str::trim).filter(|a| !a.is_empty());
+    let display = get(&section.1, "displayname").unwrap_or_default();
+    let display = display
+        .trim_start()
+        .strip_prefix('"')
+        .and_then(|rest| rest.split_once('"'))
+        .map(|(name, _)| name.to_string())
+        .unwrap_or_default();
+    let gateway = get(&section.1, "gateway")
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    let label = if !gateway.is_empty() {
+        gateway.clone()
+    } else if !section.0.is_empty() {
+        section.0.clone()
+    } else {
+        "PhonerLite".into()
+    };
+    Some(json!({
+        "label": label,
+        "displayName": display,
+        "authUsername": auth.map(String::from).unwrap_or_else(|| username.clone()),
+        "username": username,
+        "domain": gateway,
+    }))
+}
+
 pub fn load(dir: &Path) -> Value {
     let raw = fs::read_to_string(dir.join("config.json"))
         .ok()
@@ -206,6 +283,19 @@ mod tests {
         assert_eq!(cfg["zukunft"], 1);
         assert_eq!(cfg["audio"]["volume"], 0.5);
         assert_eq!(cfg["audio"]["ringer"], "");
+    }
+
+    #[test]
+    fn phonerlite_active_profile() {
+        let ini = "[Profile]\r\nProfile=Büro\r\n[Privat]\r\nUsername=1\r\n[Büro]\r\nUSERNAME=742|auth742\r\nDisplayName=\"Michael R\" <sip:742@x>\r\nGateway= sip.test \r\n";
+        assert_eq!(
+            parse_phonerlite(ini).unwrap(),
+            json!({ "label": "sip.test", "displayName": "Michael R", "username": "742", "authUsername": "auth742", "domain": "sip.test" })
+        );
+        let plain = parse_phonerlite("[Konto]\nUsername=100\n").unwrap();
+        assert_eq!(plain["label"], "Konto");
+        assert_eq!(plain["authUsername"], "100");
+        assert!(parse_phonerlite("[Profile]\nProfile=x\n").is_none());
     }
 
     #[test]

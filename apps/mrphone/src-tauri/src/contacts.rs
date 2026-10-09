@@ -162,6 +162,89 @@ impl Contacts {
         self.save()
     }
 
+    // Importierte Kontakte übernehmen: gleicher Name (ohne Groß/klein) -> nur neue Nummern ergänzen.
+    pub fn merge(&mut self, imported: &[Value], source: &str) -> std::io::Result<Value> {
+        let (mut added, mut updated) = (0, 0);
+        for item in imported {
+            let name = text(&item["name"]).trim().to_string();
+            let numbers: Vec<Value> = item["numbers"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|n| !normalize_number(&text(&n["number"])).is_empty())
+                .collect();
+            if name.is_empty() || numbers.is_empty() {
+                continue;
+            }
+            let lower = name.to_lowercase();
+            let Some(existing) = self
+                .entries
+                .iter_mut()
+                .find(|c| text(&c["name"]).to_lowercase() == lower)
+            else {
+                self.entries.push(json!({
+                    "id": uuid::Uuid::new_v4().to_string(),
+                    "name": name,
+                    "company": text(&item["company"]),
+                    "numbers": numbers,
+                    "source": source,
+                }));
+                added += 1;
+                continue;
+            };
+            let list = existing["numbers"].as_array_mut().unwrap();
+            let known: Vec<String> = list
+                .iter()
+                .map(|n| normalize_number(&text(&n["number"])))
+                .collect();
+            let fresh: Vec<Value> = numbers
+                .into_iter()
+                .filter(|n| !known.contains(&normalize_number(&text(&n["number"]))))
+                .collect();
+            if !fresh.is_empty() {
+                list.extend(fresh);
+                updated += 1;
+            }
+        }
+        self.save()?;
+        Ok(json!({ "added": added, "updated": updated, "total": self.entries.len() }))
+    }
+
+    // Aus einer Sicherung: alle Kontakte ersetzen (wie importBackup in src/main.js).
+    pub fn replace(&mut self, list: &Value) -> std::io::Result<()> {
+        self.entries = list
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+            .iter()
+            .filter(|c| c["name"].is_string() && c["numbers"].is_array())
+            .map(|c| {
+                let field = |v: &Value, default: &str| match v {
+                    Value::Null => default.to_string(),
+                    Value::String(s) if s.is_empty() => default.to_string(),
+                    Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                };
+                let numbers: Vec<Value> = c["numbers"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|n| n.is_object())
+                    .map(|n| json!({ "label": field(&n["label"], ""), "number": field(&n["number"], "") }))
+                    .collect();
+                json!({
+                    "id": field(&c["id"], &uuid::Uuid::new_v4().to_string()),
+                    "name": c["name"],
+                    "company": field(&c["company"], ""),
+                    "numbers": numbers,
+                    "source": field(&c["source"], "sicherung"),
+                })
+            })
+            .collect();
+        self.save()
+    }
+
     // Fürs Fenster: je Nummer zusätzlich die wählbare Form ("dial").
     pub fn view(&self) -> Value {
         json!(self

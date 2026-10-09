@@ -23,6 +23,11 @@ src-tauri/src/
   sip/sdp.rs       Codec-Aushandlung (Opus, G.722, G.711, telephone-event)
   sip/rtp.rs       Sprachstrom: im Mikrofontakt senden, RFC-4733-Tastentöne, Jitter/Verlust, RTCP
   sip/g722.rs      G.722-Codec (bitgenau wie die Electron-Version); Opus über libopus (Crate opus)
+  cti.rs           CTI-Server der Anlage (optional je Konto): Nicht stören, Abwesend, Kurzwahl-Status,
+                   Konferenzteilnehmer; Wiederverbinden mit Wartezeiten und Begrenzung wie die Electron-Version
+  backup.rs        verschlüsselte Sicherung (scrypt + AES-256-GCM), in beide Richtungen kompatibel zur
+                   Electron-Version (testdata/electron-backup.mrphone stammt von deren backup.js)
+  imports.rs       Kontakte: CSV-Import (Outlook-Exporte, UTF-8/ANSI), CSV-Export, klassisches Outlook per COM
   logger.rs        Protokoll sipphone.log im Datenordner
 ```
 
@@ -37,7 +42,7 @@ AudioWorklet) läuft weiter in der WebView (WebView2 = Chromium).
 | 1 | Brücke, Einstellungen, Konten, Kontakte, Verlauf, Kurzwahl, Klingelton | erledigt |
 | 2 | SIP-Anmeldung (mehrere Konten, Übernahme, BLF) | erledigt |
 | 3 | Gespräche (RTP, Opus/G.722/G.711, DTMF, Halten, Weiterleiten) | erledigt – Fenster in den Vordergrund und Windows-Meldung bei Anrufen folgen in Stufe 5 |
-| 4 | CTI, Sicherung, Importe/Exporte | offen |
+| 4 | CTI, Sicherung, Importe/Exporte (CSV, Outlook, PhonerLite) | erledigt |
 | 5 | Tray, Meldungen, Bildschirmsperre, Headset, Titelleiste, Protokoll | offen |
 | 6 | Signierte Updates, Umstieg aus der Electron-Version | offen |
 

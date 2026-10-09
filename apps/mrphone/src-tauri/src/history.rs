@@ -69,7 +69,16 @@ impl History {
     }
 
     pub fn clear(&mut self) -> std::io::Result<()> {
-        self.entries.clear();
+        self.replace(Vec::new())
+    }
+
+    // Aus einer Sicherung: nur Einträge mit Gegenstelle, höchstens MAX_ENTRIES.
+    pub fn replace(&mut self, entries: Vec<Value>) -> std::io::Result<()> {
+        self.entries = entries
+            .into_iter()
+            .filter(|e| e["remoteUri"].is_string())
+            .take(MAX_ENTRIES)
+            .collect();
         fs::write(&self.file, crate::json_indent1(&json!(self.entries)))
     }
 }
