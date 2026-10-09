@@ -2,6 +2,10 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 2.1.1
+- **Windows: Umstieg auf die neue mrphone-Version.** Das Update installiert die neue, deutlich kleinere Windows-Version (Tauri statt Electron) und entfernt die bisherige. Konten samt Passwörtern, Kontakte, Kurzwahl, Verlauf und Einstellungen bleiben erhalten. Neu dort: Design „mrtools“ (wie die übrigen mr-Apps, das bisherige bleibt als „Klassisch“ wählbar) mit Statusleiste. Beim ersten Gespräch fragt die Windows-Firewall einmal nach; für die Rufannahme per Headset einmal *Headset verbinden*. Weitere Updates kommen aus [mraudev/mrtools](https://github.com/mraudev/mrtools) (Releases `mrphone X.Y.Z`).
+- **Linux:** unverändert Electron. Die App liegt jetzt im Repository [mraudev/mrtools](https://github.com/mraudev/mrtools) (`apps/mrphone-linux`), Updates kommen von dort (Releases `mrphone-linux X.Y.Z`).
+
 ## 2.0.0
 - **Kontakt aus dem Verlauf zusammenführen:** Wer aus dem Verlauf (oder mit „+“) einen Kontakt anlegt, dessen Name schon im Telefonbuch steht, bekommt keinen zweiten Eintrag mehr – die neue Nummer wird beim vorhandenen Kontakt ergänzt, wie schon beim Import. Ein kurzer Hinweis zeigt, was passiert ist.
 
