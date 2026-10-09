@@ -8,6 +8,7 @@ und reka-ui, Aufbau und Aussehen wie [mrstart](apps/mrstart).
 | [mrtools](apps/mrtools)            | Installiert, aktualisiert und startet die Apps | 1430     |
 | [mrprocs](apps/mrprocs)            | Zeigt alle laufenden Prozesse             | 1440     |
 | [mrdiskspace](apps/mrdiskspace)    | Zeigt, wo der Plattenplatz bleibt         | 1450     |
+| [mrfilesys](apps/mrfilesys)        | Dateien und Ordner durchsuchen und verwalten | 1460  |
 | [mrstart](apps/mrstart)            | Desktop-Launcher für Entwicklungsprojekte | 1420     |
 | [mrphone](apps/mrphone)            | SIP-Softphone (Umzug aus Electron, im Aufbau) | –    |
 
@@ -75,7 +76,10 @@ die `apps/mrprocs` oder `packages/ui` betreffen. mrtools findet das Release übe
 
 Der Release-Job läuft im Environment `release` (*Settings → Environments*, nur Tags `*-v*` erlaubt).
 
-**Auto-Update:** Bisher hat nur mrstart einen Auto-Updater. Weil sich alle Apps die „Latest“-Release des
-Repositorys teilen, fragt mrstart eine feste Adresse ab: das Release `mrstart-latest`, in das der Workflow
-nach jedem mrstart-Release die `latest.json` kopiert. Die Update-Pakete werden mit dem Schlüssel aus den
-Secrets des Environments signiert – Einzelheiten in [apps/mrstart/README.md](apps/mrstart/README.md).
+**Auto-Update:** mrstart und mrtools aktualisieren sich selbst (`bundle.createUpdaterArtifacts` in ihrer
+`tauri.conf.json`). Weil sich alle Apps die „Latest“-Release des Repositorys teilen, fragt jede dieser Apps
+eine feste Adresse ab: das Release `<app>-latest`, in das der Workflow nach jedem Release der App die
+`latest.json` kopiert. Die Update-Pakete werden mit dem Schlüssel aus den Secrets des Environments signiert
+(ein Schlüssel für alle Apps) – Einzelheiten in [apps/mrstart/README.md](apps/mrstart/README.md). Für eine
+weitere App: `createUpdaterArtifacts` und `plugins.updater` (gleicher `pubkey`, Endpoint
+`…/releases/download/<app>-latest/latest.json`) wie in mrtools eintragen.

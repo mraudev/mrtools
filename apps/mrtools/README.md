@@ -12,6 +12,11 @@ Installiert, aktualisiert und startet die Apps aus diesem Repository.
   gegen die SHA-256-Prüfsumme von GitHub und führt ihn im passiven Modus aus (nur Fortschrittsbalken,
   eine laufende Instanz der App wird dabei beendet)
 - **Starten** installierter Apps, Link zum Quellcode auf GitHub
+- **Menü je App**: im Explorer anzeigen (Installationsordner, Programm markiert) und deinstallieren
+  (still, nach Rückfrage; eine laufende Instanz wird vorher beendet, die Einstellungen der App bleiben)
+- **Automatische Updates** wie in mrphone: Prüfung beim Start und alle 4 Stunden, das Update wird still
+  heruntergeladen; danach „Neu starten“ oder es wird beim Beenden installiert (signiert, Kanal
+  `mrtools-latest`)
 - **Filter** (<kbd>Strg</kbd>+<kbd>F</kbd>), <kbd>F5</kbd> aktualisiert, dunkles/helles Design
 
 ## Technik

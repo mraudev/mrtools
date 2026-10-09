@@ -10,6 +10,8 @@ export const state = reactive({
   releasesError: "",
   /** Folders whose installer is running. */
   installing: new Set<string>(),
+  /** Folders whose uninstaller is running. */
+  uninstalling: new Set<string>(),
   query: "",
   loaded: false,
 });

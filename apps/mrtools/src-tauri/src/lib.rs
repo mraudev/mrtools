@@ -7,11 +7,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             catalog::apps,
             releases::releases,
             releases::install,
             installed::launch,
+            installed::uninstall,
+            installed::reveal,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
