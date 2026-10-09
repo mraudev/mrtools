@@ -10,7 +10,7 @@ und reka-ui, Aufbau und Aussehen wie [mrstart](apps/mrstart).
 | [mrdiskspace](apps/mrdiskspace)    | Zeigt, wo der Plattenplatz bleibt         | 1450     |
 | [mrfilesys](apps/mrfilesys)        | Dateien und Ordner durchsuchen und verwalten | 1460  |
 | [mrstart](apps/mrstart)            | Desktop-Launcher für Entwicklungsprojekte | 1420     |
-| [mrphone](apps/mrphone)            | SIP-Softphone (Umzug aus Electron, im Aufbau) | –    |
+| [mrphone](apps/mrphone)            | SIP-Softphone (Nachfolger der Electron-Version) | –    |
 
 Jede App hat ihre eigene Version (in `apps/<app>/package.json`) und eigene Releases.
 
