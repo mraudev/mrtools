@@ -32,7 +32,12 @@ fn main() {
         }
         let package = read_json(&dir.join("package.json"));
         let tauri = read_json(&dir.join("src-tauri").join("tauri.conf.json"));
-        let logo = dir.join("src").join("assets").join("logo.svg");
+        // Logo unter src/assets (Vue-Apps) oder assets (mrphone, Oberfläche ohne Build-Schritt)
+        let logo = [dir.join("src").join("assets"), dir.join("assets")]
+            .map(|d| d.join("logo.svg"))
+            .into_iter()
+            .find(|p| p.is_file())
+            .unwrap_or_else(|| dir.join("src").join("assets").join("logo.svg"));
         println!("cargo:rerun-if-changed={}", logo.display());
         catalog.push(json!({
             "folder": folder,

@@ -31,6 +31,7 @@ pub struct AppState {
     pub cti: Mutex<Vec<(String, cti::Client)>>, // Konto-ID -> Client (nur Konten mit CTI-Server)
     pub cti_pending: AtomicBool,
     pub backup_file: Mutex<Option<PathBuf>>, // gewählte Sicherung, bis das Passwort eingegeben ist
+    pub test_copy: bool,                     // Testkopie neben der installierten Electron-Version
 }
 
 const OPTION_KEYS: [&str; 6] = [
@@ -585,8 +586,12 @@ pub fn reset_ringtone(state: State<'_, AppState>) {
 }
 
 #[tauri::command]
-pub fn get_version() -> String {
-    format!("{} (Tauri-Test)", env!("CARGO_PKG_VERSION"))
+pub fn get_version(state: State<'_, AppState>) -> String {
+    if state.test_copy {
+        format!("{} (Tauri-Test)", env!("CARGO_PKG_VERSION"))
+    } else {
+        env!("CARGO_PKG_VERSION").to_string()
+    }
 }
 
 // Protokoll im Explorer zeigen (Datei markiert), damit man es weitergeben kann.

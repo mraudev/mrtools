@@ -30,7 +30,10 @@ src-tauri/src/
   imports.rs       Kontakte: CSV-Import (Outlook-Exporte, UTF-8/ANSI), CSV-Export, klassisches Outlook per COM
   desktop.rs       Windows: Tray, Meldungen (Anruf mit Annehmen/Ablehnen, verpasster Anruf), Fenster
                    hervorholen, Abmelden bei gesperrtem PC, Fensterknöpfe der eigenen Titelleiste
+  updater.rs       automatische Updates (signiert, Kanal mrphone-latest) – nur in der installierten App
+  migration.rs     erkennt die installierte Electron-Version (Registry)
   logger.rs        Protokoll sipphone.log im Datenordner
+src-tauri/installer-hooks.nsh   Installer entfernt die Electron-Version (Daten bleiben)
 ```
 
 Die Oberfläche ist die der Electron-Version, nur die Brücke `window.phone` ist neu. Dazu kommt das Design
@@ -49,13 +52,20 @@ AudioWorklet) läuft weiter in der WebView (WebView2 = Chromium).
 | 3 | Gespräche (RTP, Opus/G.722/G.711, DTMF, Halten, Weiterleiten) | erledigt – Fenster in den Vordergrund und Windows-Meldung bei Anrufen folgen in Stufe 5 |
 | 4 | CTI, Sicherung, Importe/Exporte (CSV, Outlook, PhonerLite) | erledigt |
 | 5 | Tray, Meldungen, Bildschirmsperre, Headset, Titelleiste, Protokoll | erledigt |
-| 6 | Signierte Updates, Umstieg aus der Electron-Version | offen |
+| 6 | Signierte Updates, Umstieg aus der Electron-Version | umgesetzt – Testphase mit dem ersten Release |
 
-## Daten
+## Daten und Umstieg aus der Electron-Version
 
-Die Electron-Version speichert in `%APPDATA%\SIP Phone`. Solange diese Version im Aufbau ist, arbeitet sie
-auf einer **Kopie** in `%APPDATA%\mrphone-tauri-test` (beim ersten Start angelegt) – die installierte
-Electron-App bleibt unberührt. `MRPHONE_DATA_DIR` setzt einen anderen Ordner (Selbsttests).
+Die Daten liegen wie in der Electron-Version in `%APPDATA%\SIP Phone` (config.json, contacts.json,
+history.json, „Local State“ mit dem Schlüssel der Zugangsdaten). Der Installer dieser Version entfernt eine
+installierte Electron-Version still (`installer-hooks.nsh`, über ihren festen Uninstall-Eintrag) – die Daten
+bleiben und gelten direkt weiter, auch die verschlüsselten Passwörter. Startmenü-Verknüpfung und
+Firewall-Freigabe legt der Installer bzw. Windows neu an (Windows fragt beim ersten Gespräch einmal nach).
+
+Ist die Electron-Version noch installiert (z. B. Start der Exe aus dem Build-Ordner), arbeitet diese Version
+auf einer **Kopie** in `%APPDATA%\mrphone-tauri-test` (beim ersten Start angelegt) und lässt die installierte
+App unberührt; die Version zeigt dann „(Tauri-Test)“. `MRPHONE_DATA_DIR` setzt einen anderen Ordner
+(Selbsttests).
 
 Auf der Testkopie startet die Telefonie **vorsichtig**: Ist das Konto schon an einem anderen Gerät angemeldet
 (z. B. der installierten Electron-App), zeigt mrphone „An anderem Gerät“ und meldet sich erst nach
@@ -63,10 +73,26 @@ Auf der Testkopie startet die Telefonie **vorsichtig**: Ist das Konto schon an e
 hervor und läuft auch neben einer anderen Instanz – Meldungen stehen dann nur im Protokoll. Für Selbsttests: `MRPHONE_CAUTIOUS=0/1`, `MRPHONE_SIP_BIND=127.0.0.1` (nur lokal lauschen,
 keine Firewall-Abfrage), `SIP_TRACE=1` (SIP-Mitschnitt im Protokoll), `MRPHONE_MUTE=1` (Fenster stumm).
 
+## Updates und Release
+
+Wie mrstart und mrtools: Die installierte App prüft beim Start und alle 4 Stunden
+`https://github.com/mraudev/mrtools/releases/download/mrphone-latest/latest.json`, lädt ein Update still
+herunter und bietet dann „Neu starten“ an (nie mitten im Gespräch; vorher wird abgemeldet). Wer nicht neu
+startet, bekommt das Update beim Beenden über das Tray. Die Pakete sind mit dem gemeinsamen Schlüssel der
+mr-Apps signiert (Secrets im Environment `release`, siehe Root-README).
+
+```bash
+npm run release -- mrphone <patch|minor|major|x.y.z>   # im Repository-Root, dann: git push --follow-tags
+```
+
+Die Version muss über der letzten Electron-Version liegen (die steht in mraudev/sipphone), damit Nutzer
+nicht verwirrt werden.
+
 ## Entwicklung
 
 ```bash
-npm run tauri build -w apps/mrphone    # Installer nach target/release/bundle/nsis
+npm run tauri build -w apps/mrphone    # Installer nach target/release/bundle/nsis (braucht den Signaturschlüssel)
+npm run tauri build -w apps/mrphone -- --config '{"bundle":{"createUpdaterArtifacts":false}}'   # ohne Schlüssel
 cargo test -p mrphone
 ```
 

@@ -1,4 +1,4 @@
-// mrphone – Tauri-Version (im Aufbau; Stufe 5: zusätzlich Tray, Meldungen, Bildschirmsperre, Titelleiste).
+// mrphone – Tauri-Version (Stufe 6: zusätzlich Updates und Umstieg aus der Electron-Version).
 // Die Oberfläche (public/) ist dieselbe wie in der Electron-Version; bridge.js stellt window.phone bereit.
 mod backup;
 mod commands;
@@ -9,10 +9,12 @@ mod desktop;
 mod history;
 mod imports;
 mod logger;
+mod migration;
 mod paths;
 mod phone;
 mod secrets;
 mod sip;
+mod updater;
 
 use commands::AppState;
 use std::sync::{
@@ -86,6 +88,7 @@ pub fn run() {
     }
     builder
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let (dir, test_copy) = paths::data_dir()?;
             logger::init(&dir);
@@ -130,6 +133,7 @@ pub fn run() {
                 cti: Mutex::new(Vec::new()),
                 cti_pending: AtomicBool::new(false),
                 backup_file: Mutex::new(None),
+                test_copy,
             });
             commands::sync_cti(app.handle());
             let mut builder =
@@ -148,6 +152,7 @@ pub fn run() {
             let window = builder.build()?;
             allow_microphone_only(&window)?;
             desktop::setup(app.handle(), &window, &dir)?;
+            updater::start(app.handle());
             commands::apply_theme(app.handle(), &theme);
             Ok(())
         })
@@ -171,6 +176,8 @@ pub fn run() {
             commands::open_log,
             commands::log_headset,
             desktop::window_control,
+            updater::get_update,
+            updater::install_update,
             desktop::window_maximized,
             commands::get_contacts,
             commands::save_contact,
@@ -201,6 +208,7 @@ pub fn run() {
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
                     phone.stop().await;
+                    updater::install_on_quit(&app); // beendet die App selbst, falls ein Update bereitliegt
                     STOPPED.store(true, Ordering::SeqCst);
                     app.exit(0);
                 });

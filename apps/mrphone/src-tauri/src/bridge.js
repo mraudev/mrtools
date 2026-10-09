@@ -49,9 +49,9 @@
     logHeadset: (text) => {
       invoke('log_headset', { text: String(text) }).catch(() => {});
     },
-    getUpdate: () => Promise.resolve(null),
-    installUpdate: () => Promise.resolve(null),
-    onUpdate: () => {},
+    getUpdate: () => invoke('get_update'),
+    installUpdate: () => invoke('install_update'),
+    onUpdate: (cb) => on('phone:update', cb),
     getContacts: () => invoke('get_contacts'),
     saveContact: (data) => invoke('save_contact', { data }),
     deleteContact: (id) => invoke('delete_contact', { id }),
