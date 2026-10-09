@@ -40,7 +40,15 @@ jobs:
       - name: Frontend (Tests)
         run: npm test
 
-      - name: Rust (Clippy + Tests, ganzer Workspace)
-        run: |
-          cargo clippy --locked --workspace --all-targets -- -D warnings
-          cargo test --locked --workspace
+      - name: Rust (Clippy, ganzer Workspace)
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+
+      # Je App ein Schritt, damit sofort sichtbar ist, welche App scheitert.
+      - name: Rust-Tests mrtools
+        run: cargo test --locked -p mrtools
+
+      - name: Rust-Tests mrprocs
+        run: cargo test --locked -p mrprocs
+
+      - name: Rust-Tests mrdiskspace
+        run: cargo test --locked -p mrdiskspace
