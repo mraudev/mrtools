@@ -139,6 +139,37 @@ impl Contacts {
             return Err("Bitte mindestens eine Telefonnummer eingeben.".into());
         }
         let id = text(&data["id"]);
+        // Neuer Kontakt mit einem Namen, den es schon gibt (z. B. aus dem Verlauf übernommen): wie beim
+        // Import nur die fehlenden Nummern beim vorhandenen Kontakt ergänzen.
+        if id.is_empty() {
+            let lower = name.to_lowercase();
+            if let Some(i) = self
+                .entries
+                .iter()
+                .position(|c| text(&c["name"]).to_lowercase() == lower)
+            {
+                let list = self.entries[i]["numbers"].as_array_mut().unwrap();
+                let mut added = 0;
+                for n in numbers {
+                    let norm = normalize_number(n["number"].as_str().unwrap_or_default());
+                    if !list
+                        .iter()
+                        .any(|k| normalize_number(&text(&k["number"])) == norm)
+                    {
+                        list.push(n);
+                        added += 1;
+                    }
+                }
+                let company = text(&data["company"]).trim().to_string();
+                if text(&self.entries[i]["company"]).is_empty() && !company.is_empty() {
+                    self.entries[i]["company"] = json!(company);
+                }
+                let mut merged = self.entries[i].clone();
+                self.save().map_err(|e| e.to_string())?;
+                merged["merged"] = json!(added);
+                return Ok(merged);
+            }
+        }
         let existing = (!id.is_empty())
             .then(|| self.entries.iter().position(|c| text(&c["id"]) == id))
             .flatten();
@@ -300,6 +331,15 @@ mod tests {
         )
         .unwrap();
         assert!(c.upsert(&json!({ "name": "", "numbers": [] })).is_err());
+        // Gleicher Name (aus dem Verlauf übernommen): Nummer beim vorhandenen Kontakt ergänzen
+        let merged = c
+            .upsert(&json!({ "name": "zoe ", "numbers": [{ "label": "Firma", "number": "030 999" }, { "label": "Mobil", "number": "01715550123" }] }))
+            .unwrap();
+        assert_eq!(merged["merged"], 1);
+        assert_eq!(c.entries.len(), 2);
+        let zoe = c.entries.iter().find(|e| e["name"] == "Zoe").unwrap();
+        assert_eq!(zoe["numbers"].as_array().unwrap().len(), 2);
+        assert!(zoe.get("merged").is_none());
         assert_eq!(c.entries[0]["name"], "Ärger"); // Ä wie A einsortiert
         assert_eq!(c.lookup("sip:01715550123@x").as_deref(), Some("Zoe"));
         let again = Contacts::load(&dir);

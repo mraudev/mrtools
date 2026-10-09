@@ -625,9 +625,13 @@ fn contacts_changed(app: &AppHandle, state: &AppState) {
 pub fn save_contact(app: AppHandle, state: State<'_, AppState>, data: Value) -> Value {
     let result = state.contacts.lock().unwrap().upsert(&data);
     match result {
-        Ok(_) => {
+        Ok(contact) => {
             contacts_changed(&app, &state);
-            Value::Null
+            // Mit vorhandenem Kontakt gleichen Namens zusammengeführt: der Oberfläche Bescheid geben
+            match contact.get("merged") {
+                Some(added) => json!({ "merged": contact["name"], "added": added }),
+                None => Value::Null,
+            }
         }
         Err(msg) => error(msg),
     }

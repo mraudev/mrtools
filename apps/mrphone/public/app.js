@@ -13,6 +13,18 @@ function applyDesign(design) {
   } catch {}
   return value;
 }
+// Statusleiste (Design „mrtools“): Übersicht links, Hell/Dunkel und Version rechts.
+const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
+
+function renderStatusbar() {
+  const parts = [`${contacts.length} ${contacts.length === 1 ? 'Kontakt' : 'Kontakte'}`, `${favorites.length} Kurzwahl`];
+  if (cti.accounts.length) parts.push(ctiOwn().connected ? 'CTI verbunden' : 'CTI getrennt');
+  $('statusInfo').textContent = parts.join(' · ');
+  const dark = systemDark.matches;
+  $('themeToggle').classList.toggle('dark', dark);
+  $('themeToggle').title = dark ? 'Hell darstellen' : 'Dunkel darstellen';
+}
+
 let cachedDesign = null;
 try {
   cachedDesign = localStorage.getItem('design');
@@ -178,6 +190,7 @@ function renderLineSelect() {
 
 function render() {
   renderStatus();
+  renderStatusbar();
 
   const call = state.call;
   $('updateBar').hidden = !update || !!call; // nie mitten im Gespräch
@@ -831,6 +844,7 @@ function renderHistory() {
 const NUMBER_LABELS = ['Geschäftlich', 'Mobil', 'Privat', 'Firma', 'Weitere'];
 
 function renderContacts() {
+  renderStatusbar();
   const query = $('contactSearch').value.trim().toLowerCase();
   const digits = query.replace(/\D/g, '');
   const matches = contacts.filter((c) => !query
@@ -948,6 +962,7 @@ function favoriteState(number) {
 }
 
 function renderFavorites() {
+  renderStatusbar();
   favoritePager.show(favorites.map((f) => {
     const state = favoriteState(f.number);
     const li = el('li', 'favorite');
@@ -1074,6 +1089,8 @@ async function saveContact(e) {
     return;
   }
   $('contactDialog').close();
+  // Name gab es schon: Nummer wurde beim vorhandenen Kontakt ergänzt (statt eines zweiten Kontakts)
+  if (res && res.merged) toast(res.added ? `Nummer bei „${res.merged}“ ergänzt` : `„${res.merged}“ hat diese Nummer bereits`);
 }
 
 async function deleteContact() {
@@ -1983,6 +2000,12 @@ $('headsetAnswer').onchange = async () => {
 $('connectHeadset').onclick = connectHeadset;
 $('themeSelect').onchange = () => window.phone.setOptions({ theme: $('themeSelect').value });
 $('designSelect').onchange = () => window.phone.setOptions({ design: applyDesign($('designSelect').value) });
+$('themeToggle').onclick = () => {
+  const theme = systemDark.matches ? 'light' : 'dark';
+  $('themeSelect').value = theme;
+  window.phone.setOptions({ theme });
+};
+systemDark.addEventListener('change', renderStatusbar);
 $('gateBtn').onclick = unlockAudio;
 for (const id of ['micSelect', 'speakerSelect', 'ringerSelect', 'spkMicSelect', 'spkSpeakerSelect']) $(id).onchange = onDeviceChange;
 $('testSpeaker').onclick = () => testTone('ringback');
@@ -2066,7 +2089,10 @@ window.phone.onAudioFormat((fmt) => {
   state = await window.phone.getState();
   accounts = await window.phone.getAccounts();
   update = await window.phone.getUpdate();
-  $('appVersion').textContent = await window.phone.getVersion();
+  const version = await window.phone.getVersion();
+  $('appVersion').textContent = version;
+  $('statusVersion').textContent = `v${version.split(' ')[0]}`;
+  $('statusVersion').title = version;
   if (!accountConfigured()) showAccountForm();
   history = await window.phone.getHistory();
   renderHistory();
