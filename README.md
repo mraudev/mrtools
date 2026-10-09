@@ -8,6 +8,7 @@ und reka-ui, Aufbau und Aussehen wie [mrstart](apps/mrstart).
 | [mrtools](apps/mrtools)            | Installiert, aktualisiert und startet die Apps | 1430     |
 | [mrprocs](apps/mrprocs)            | Zeigt alle laufenden Prozesse             | 1440     |
 | [mrdiskspace](apps/mrdiskspace)    | Zeigt, wo der Plattenplatz bleibt         | 1450     |
+| [mrfilesys](apps/mrfilesys)        | Dateien und Ordner durchsuchen und verwalten | 1460  |
 | [mrstart](apps/mrstart)            | Desktop-Launcher für Entwicklungsprojekte | 1420     |
 
 Jede App hat ihre eigene Version (in `apps/<app>/package.json`) und eigene Releases.

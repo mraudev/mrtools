@@ -1,0 +1,42 @@
+[package]
+name = "mrfilesys"
+version = "0.1.0"
+description = "Dateien und Ordner durchsuchen und verwalten"
+authors = ["Michael Rau <dev@mraudev.com>"]
+edition = "2021"
+
+[lib]
+# The `_lib` suffix avoids a name clash between the lib and the bin on Windows,
+# see https://github.com/rust-lang/cargo/issues/8519
+name = "mrfilesys_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-opener = "2"
+tauri-plugin-window-state = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rayon = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Storage_FileSystem",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+  "Win32_System_Registry",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
+# COM interfaces for dragging files out of the window (same version as Tauri's).
+windows = { version = "0.62", features = [
+  "Win32_System_Com",
+  "Win32_System_Ole",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_Common",
+] }
