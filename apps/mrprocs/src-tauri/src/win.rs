@@ -640,9 +640,10 @@ mod tests {
         assert_eq!(suspended(), Some(true));
         suspend(pid, false).unwrap();
         assert_eq!(suspended(), Some(false));
-        assert_eq!(priority(pid), 0x20);
-        set_priority(pid, 0x4000).unwrap();
-        assert_eq!(priority(pid), 0x4000);
+        // The child inherits our priority class – on CI runners that is below normal.
+        let target = if priority(pid) == 0x4000 { 0x20 } else { 0x4000 };
+        set_priority(pid, target).unwrap();
+        assert_eq!(priority(pid), target);
 
         terminate(pid).unwrap();
         assert_eq!(child.wait().unwrap().code(), Some(1));
