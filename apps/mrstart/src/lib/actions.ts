@@ -1,6 +1,6 @@
 import { api } from "./api";
 import { store } from "./store";
-import { toastError } from "./toast";
+import { toastError } from "@mrtools/ui/lib/toast";
 import { DEFAULT_COMMANDS, type LaunchKind, type Project } from "./types";
 
 export function commandTemplate(kind: LaunchKind): string {

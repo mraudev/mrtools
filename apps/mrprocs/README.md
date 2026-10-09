@@ -26,7 +26,7 @@ Zeigt alle laufenden Prozesse – ähnlich wie Task-Manager oder Process Explore
 ## Technik
 
 [Tauri 2](https://v2.tauri.app) (Rust, `sysinfo` plus Windows-APIs aus `ntdll`, `iphlpapi` und `shell32`)
-mit Vue 3, TypeScript, Tailwind CSS 4 und reka-ui – Aufbau und Aussehen wie [mrstart](https://github.com/mraudev/mrstart).
+mit Vue 3, TypeScript, Tailwind CSS 4 und reka-ui – Aufbau und Aussehen wie [mrstart](../mrstart).
 
 Entwicklung, Tests und Release: siehe [README im Repository-Root](../../README.md)
 (`npm run tauri dev -w apps/mrprocs`).

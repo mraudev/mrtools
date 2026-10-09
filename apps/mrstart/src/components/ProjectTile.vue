@@ -29,14 +29,14 @@ import {
   Terminal,
   TriangleAlert,
 } from "@lucide/vue";
-import Tip from "./ui/Tip.vue";
+import Tip from "@mrtools/ui/components/Tip";
 import { api } from "@/lib/api";
 import { baseName, launch, openGitTool, openPath, runProjectCommand } from "@/lib/actions";
 import { runGit } from "@/lib/gitConsole";
 import { openInBrowser, pullErrorFor, pullFor } from "@/lib/pulls";
 import { ago, dateTime } from "@/lib/time";
 import { isPinned, openProjectEditor, store, togglePin } from "@/lib/store";
-import { toast, toastError } from "@/lib/toast";
+import { toast, toastError } from "@mrtools/ui/lib/toast";
 import type { BranchInfo, Project } from "@/lib/types";
 
 const props = defineProps<{

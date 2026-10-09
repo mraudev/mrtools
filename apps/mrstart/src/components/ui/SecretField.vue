@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { KeyRound, Trash2 } from "@lucide/vue";
-import Tip from "./Tip.vue";
+import Tip from "@mrtools/ui/components/Tip";
 import { api } from "@/lib/api";
 import { refresh } from "@/lib/store";
-import { toast, toastError } from "@/lib/toast";
+import { toast, toastError } from "@mrtools/ui/lib/toast";
 import type { SecretName } from "@/lib/types";
 
 /**

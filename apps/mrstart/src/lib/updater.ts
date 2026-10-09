@@ -1,7 +1,7 @@
 import { reactive } from "vue";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { toast, toastError } from "./toast";
+import { toast, toastError } from "@mrtools/ui/lib/toast";
 
 export const updater = reactive({
   status: "idle" as "idle" | "checking" | "available" | "current" | "error" | "downloading" | "installing",

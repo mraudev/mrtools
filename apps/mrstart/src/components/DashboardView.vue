@@ -24,7 +24,7 @@ import {
   TriangleAlert,
 } from "@lucide/vue";
 import DashboardCharts from "./DashboardCharts.vue";
-import Tip from "./ui/Tip.vue";
+import Tip from "@mrtools/ui/components/Tip";
 import { dashboard, loadDashboard, pullKey, reviewWithClaude, updateBranch } from "@/lib/dashboard";
 import { openInBrowser } from "@/lib/pulls";
 import { store } from "@/lib/store";

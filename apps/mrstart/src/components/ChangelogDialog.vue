@@ -2,7 +2,7 @@
 import { onMounted, ref } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
 import { Sparkles } from "@lucide/vue";
-import Dialog from "./ui/Dialog.vue";
+import Dialog from "@mrtools/ui/components/Dialog";
 import { api } from "@/lib/api";
 import { store } from "@/lib/store";
 

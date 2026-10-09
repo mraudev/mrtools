@@ -2,7 +2,7 @@ import { reactive } from "vue";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api } from "./api";
 import { store } from "./store";
-import { toastError } from "./toast";
+import { toastError } from "@mrtools/ui/lib/toast";
 import type { PullRequestResult } from "./types";
 
 /** Open pull requests of the projects in the current tab, shown on their tiles. */

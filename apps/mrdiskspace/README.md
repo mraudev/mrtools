@@ -22,7 +22,7 @@ kann deshalb über dem belegten Platz des Laufwerks liegen.
 ## Technik
 
 [Tauri 2](https://v2.tauri.app) (Rust, rayon) mit Vue 3, TypeScript, Tailwind CSS 4 und reka-ui –
-Aufbau und Aussehen wie [mrstart](https://github.com/mraudev/mrstart). Der Scan-Baum bleibt im Rust-Prozess; das Frontend lädt
+Aufbau und Aussehen wie [mrstart](../mrstart). Der Scan-Baum bleibt im Rust-Prozess; das Frontend lädt
 Ordner nur beim Aufklappen.
 
 Entwicklung, Tests und Release: siehe [README im Repository-Root](../../README.md)

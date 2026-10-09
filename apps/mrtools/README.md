@@ -18,7 +18,7 @@
 ## Technik
 
 [Tauri 2](https://v2.tauri.app) (Rust) mit Vue 3, TypeScript, Tailwind CSS 4 und reka-ui – Aufbau und
-Aussehen wie [mrstart](https://github.com/mraudev/mrstart).
+Aussehen wie [mrstart](../mrstart).
 
 ```
 src/                  Vue-Frontend

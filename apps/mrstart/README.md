@@ -36,12 +36,14 @@ Die Konfiguration liegt in `%APPDATA%\de.mraudev.mrstart\config.json`.
 
 ## Technik
 
-[Tauri 2](https://v2.tauri.app) (Rust) mit Vue 3, TypeScript, Tailwind CSS 4 und reka-ui.
+[Tauri 2](https://v2.tauri.app) (Rust) mit Vue 3, TypeScript, Tailwind CSS 4 und reka-ui. mrstart liegt im
+Monorepo [mraudev/mrtools](https://github.com/mraudev/mrtools) und nutzt dessen gemeinsame Oberfläche
+`@mrtools/ui`; bis Version 1.7.0 lag es in [mraudev/mrstart](https://github.com/mraudev/mrstart).
 Der Installer ist ein NSIS-Setup ohne Admin-Rechte (Installation pro Benutzer).
 
 ```
 src/                  Vue-Frontend
-  components/         Ansichten, Kacheln, Dialoge (ui/ = Basisbausteine)
+  components/         Ansichten, Kacheln, Dialoge (ui/ = eigene Basisbausteine)
   lib/                Store, API-Wrapper, Git-Konsole, Updater, Theme
 src-tauri/            Rust-Backend
   src/config.rs       Laden/Speichern der Konfiguration
@@ -49,23 +51,15 @@ src-tauri/            Rust-Backend
   src/git.rs          Branch-Abfrage, Pull/Push mit gestreamter Ausgabe
   src/pulls.rs        Offene Pull Requests (GitHub/Gitea)
   src/projects.rs     Überwachte Ordner, Standard-Apps
-.github/workflows/    CI (Build, Clippy, Tests) und Release
 ```
 
 ## Entwicklung
 
-Voraussetzungen: Node.js 22, Rust (stable, MSVC), Visual Studio C++ Build Tools, WebView2.
+Siehe [README im Repository-Root](../../README.md):
 
 ```bash
-npm install
-npm run tauri dev
-```
-
-Tests und Prüfungen wie in der CI:
-
-```bash
-npm run build && npm test
-cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo test
+npm install                          # im Repository-Root
+npm run tauri dev -w apps/mrstart
 ```
 
 ## Sicherheit
@@ -96,18 +90,34 @@ eintragen. Schlüsseldatei und Passwort zusätzlich im Passwort-Manager sichern 
 sich keine Updates mehr signieren und installierte Versionen würden nicht mehr aktualisiert.
 Danach kann die lokale Schlüsseldatei gelöscht werden.
 
-**Einmalig – GitHub einrichten:** Unter *Settings → Environments* ein Environment `release` anlegen,
-bei *Deployment branches and tags* nur Tags `v*` erlauben und dort zwei Environment-Secrets setzen:
-`TAURI_SIGNING_PRIVATE_KEY` (Inhalt von `mrstart.key`) und `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+**Einmalig – GitHub einrichten:** Im Repository `mraudev/mrtools` unter *Settings → Environments* ein
+Environment `release` anlegen, bei *Deployment branches and tags* nur Tags `*-v*` erlauben und dort zwei
+Environment-Secrets setzen: `TAURI_SIGNING_PRIVATE_KEY` (Inhalt von `mrstart.key`) und
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Der Release-Workflow gibt sie nur beim Release von mrstart weiter.
 
-**Neue Version veröffentlichen:**
+**Neue Version veröffentlichen** (im Repository-Root):
 
 ```bash
-npm version minor        # oder patch/major – erhöht package.json, committet und taggt vX.Y.Z
+npm run release -- mrstart minor   # oder patch/major – erhöht package.json, committet und taggt mrstart-vX.Y.Z
 git push --follow-tags
 ```
 
-Der Workflow `release.yml` baut den Installer, signiert die Update-Pakete und veröffentlicht ein
-GitHub-Release inklusive `latest.json`; die Commit-Nachrichten seit dem letzten Tag werden zu den
-Release-Notizen, die auch im Update-Dialog erscheinen. Die App-Version kommt allein aus
+Der Workflow `release.yml` baut den Installer, signiert die Update-Pakete und veröffentlicht das
+GitHub-Release `mrstart X.Y.Z` inklusive `latest.json`. Die `latest.json` kopiert er zusätzlich in das
+feste Release `mrstart-latest`; dort fragen installierte Versionen nach Updates:
+`https://github.com/mraudev/mrtools/releases/download/mrstart-latest/latest.json`. Die
+Commit-Nachrichten seit dem letzten Release, die `apps/mrstart` oder `packages/ui` betreffen, werden zu
+den Release-Notizen, die auch im Update-Dialog erscheinen. Die App-Version kommt allein aus
 `package.json` (`tauri.conf.json` verweist darauf).
+
+**Übergang vom alten Repository (einmalig, beim ersten Release aus dem Monorepo):** Versionen bis 1.7.0
+fragen noch `mraudev/mrstart` nach Updates. Damit sie das neue Release finden, dessen `latest.json` dort
+als Release anlegen, z. B. für 1.8.0:
+
+```bash
+gh release download mrstart-v1.8.0 --repo mraudev/mrtools --pattern latest.json
+gh release create v1.8.0 latest.json --repo mraudev/mrstart --title "mrstart 1.8.0" --notes "mrstart ist nach https://github.com/mraudev/mrtools umgezogen."
+```
+
+Die Download-Adressen in der `latest.json` zeigen auf `mraudev/mrtools`. Nach dem Update auf 1.8.0
+fragen die Installationen nur noch den neuen Update-Kanal ab, und `mraudev/mrstart` kann archiviert werden.

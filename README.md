@@ -1,13 +1,14 @@
 # mrtools
 
 Kleine Windows-Tools – alle mit [Tauri 2](https://v2.tauri.app) (Rust), Vue 3, TypeScript, Tailwind CSS 4
-und reka-ui, Aufbau und Aussehen wie [mrstart](https://github.com/mraudev/mrstart).
+und reka-ui, Aufbau und Aussehen wie [mrstart](apps/mrstart).
 
 | App                                | Zweck                                     | Dev-Port |
 | ---------------------------------- | ----------------------------------------- | -------- |
 | [mrtools](apps/mrtools)            | Übersicht und Starter für die eigenen Apps | 1430     |
 | [mrprocs](apps/mrprocs)            | Zeigt alle laufenden Prozesse             | 1440     |
 | [mrdiskspace](apps/mrdiskspace)    | Zeigt, wo der Plattenplatz bleibt         | 1450     |
+| [mrstart](apps/mrstart)            | Desktop-Launcher für Entwicklungsprojekte | 1420     |
 
 Jede App hat ihre eigene Version (in `apps/<app>/package.json`) und eigene Releases.
 
@@ -71,5 +72,9 @@ Der Workflow `release.yml` baut nur die App aus dem Tag und veröffentlicht ihre
 GitHub-Release `mrprocs 0.2.0`. Die Release-Notizen sind die Commits seit dem letzten Release dieser App,
 die `apps/mrprocs` oder `packages/ui` betreffen. mrtools findet das Release über das Tag-Präfix.
 
-Ein Auto-Updater ist noch nicht eingerichtet. Dafür bräuchte jede App eine feste Update-URL, weil sich
-alle Apps die „latest“-Release des Repositorys teilen würden.
+Der Release-Job läuft im Environment `release` (*Settings → Environments*, nur Tags `*-v*` erlaubt).
+
+**Auto-Update:** Bisher hat nur mrstart einen Auto-Updater. Weil sich alle Apps die „Latest“-Release des
+Repositorys teilen, fragt mrstart eine feste Adresse ab: das Release `mrstart-latest`, in das der Workflow
+nach jedem mrstart-Release die `latest.json` kopiert. Die Update-Pakete werden mit dem Schlüssel aus den
+Secrets des Environments signiert – Einzelheiten in [apps/mrstart/README.md](apps/mrstart/README.md).

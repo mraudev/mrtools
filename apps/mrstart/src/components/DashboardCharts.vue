@@ -2,7 +2,7 @@
 import { computed, type Component } from "vue";
 import { CircleAlert, CircleCheck, CircleDashed, CircleX, TriangleAlert } from "@lucide/vue";
 import ChartCard from "./ui/ChartCard.vue";
-import Tip from "./ui/Tip.vue";
+import Tip from "@mrtools/ui/components/Tip";
 import { dashboard } from "@/lib/dashboard";
 import type { DashboardPull, PullStatus } from "@/lib/types";
 

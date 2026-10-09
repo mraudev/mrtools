@@ -71,7 +71,7 @@ pub async fn release_notes(version: String) -> Result<String, String> {
     {
         return Err("Ungültige Version.".into());
     }
-    let url = format!("https://api.github.com/repos/mraudev/mrstart/releases/tags/v{version}");
+    let url = format!("https://api.github.com/repos/mraudev/mrtools/releases/tags/mrstart-v{version}");
     let response = crate::pulls::http_client()?
         .get(url)
         .header("Accept", "application/vnd.github+json")

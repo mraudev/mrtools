@@ -3,6 +3,12 @@ name: Release
 # Ein Tag `<app>-v<version>` (z. B. `mrprocs-v0.2.0`) baut den Windows-Installer
 # dieser einen App und veröffentlicht ihn als GitHub-Release. Tags anlegen mit
 # `npm run release -- <app> <patch|minor|major>`.
+#
+# mrstart hat einen Auto-Updater: seine Update-Pakete werden signiert, und die
+# `latest.json` landet zusätzlich im festen Release `mrstart-latest`, das
+# installierte Versionen unter
+# https://github.com/mraudev/mrtools/releases/download/mrstart-latest/latest.json
+# abfragen.
 on:
   push:
     tags: ["*-v*"]
@@ -13,6 +19,9 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    # Die Signatur-Secrets liegen im Environment „release“, das nur für Tags
+    # `*-v*` freigegeben ist (siehe README).
+    environment: release
     permissions:
       contents: write # Release anlegen und Dateien hochladen
     steps:
@@ -67,9 +76,12 @@ jobs:
       # --ignore-scripts: keine Install-Skripte aus Abhängigkeiten ausführen.
       - run: npm ci --ignore-scripts
 
+      # Nur dieser Schritt sieht den Signaturschlüssel, und nur beim Release von mrstart.
       - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.app.outputs.name == 'mrstart' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.app.outputs.name == 'mrstart' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         with:
           projectPath: apps/${{ steps.app.outputs.name }}
           tagName: ${{ github.ref_name }}
@@ -77,3 +89,20 @@ jobs:
           releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: false
           prerelease: false
+
+      # Feste Adresse für den Auto-Updater: `latest.json` des neuen Releases in
+      # das Release `mrstart-latest` kopieren. Es ist als Vorabversion markiert,
+      # damit es nie als „Latest“ erscheint.
+      - name: Update-Kanal von mrstart aktualisieren
+        if: steps.app.outputs.name == 'mrstart'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern latest.json --dir update
+          if ! gh release view mrstart-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create mrstart-latest --repo "$GITHUB_REPOSITORY" --prerelease --target main \
+              --title "mrstart – Update-Kanal" \
+              --notes "Enthält nur die latest.json für den Auto-Updater von mrstart. Die Installer liegen in den Releases mrstart-vX.Y.Z."
+          fi
+          gh release upload mrstart-latest update/latest.json --repo "$GITHUB_REPOSITORY" --clobber

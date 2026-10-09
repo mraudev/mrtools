@@ -3,7 +3,7 @@ name = "mrstart"
 version = "1.7.0"
 description = "Desktop-Launcher für Entwicklungsprojekte"
 authors = ["Michael Rau <dev@mraudev.com>"]
-repository = "https://github.com/mraudev/mrstart"
+repository = "https://github.com/mraudev/mrtools"
 edition = "2021"
 
 [lib]
@@ -29,10 +29,3 @@ keyring-core = "1"
 windows-native-keyring-store = { version = "1", default-features = false }
 tauri-plugin-single-instance = "2"
 tauri-plugin-notification = "2"
-
-[profile.release]
-codegen-units = 1
-lto = true
-opt-level = "s"
-panic = "abort"
-strip = true

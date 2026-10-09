@@ -6,7 +6,7 @@
   "author": "Michael Rau <dev@mraudev.com>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mraudev/mrstart.git"
+    "url": "https://github.com/mraudev/mrtools.git"
   },
   "type": "module",
   "scripts": {
@@ -16,6 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@mrtools/ui": "*",
     "@lucide/vue": "^1.51.0",
     "@tauri-apps/api": "^2.12.1",
     "@tauri-apps/plugin-dialog": "^2.8.1",

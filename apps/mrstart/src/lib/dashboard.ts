@@ -2,7 +2,7 @@ import { reactive } from "vue";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { api } from "./api";
 import { store } from "./store";
-import { toast, toastError } from "./toast";
+import { toast, toastError } from "@mrtools/ui/lib/toast";
 import type { DashboardIssue, DashboardPull } from "./types";
 
 export const dashboard = reactive({

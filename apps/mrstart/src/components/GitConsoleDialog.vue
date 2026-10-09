@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { ClipboardCheck, CloudDownload, CloudUpload, LoaderCircle } from "@lucide/vue";
-import Dialog from "./ui/Dialog.vue";
+import Dialog from "@mrtools/ui/components/Dialog";
 import { openGitTool } from "@/lib/actions";
 import { gitConsole, type ConsoleLine } from "@/lib/gitConsole";
 

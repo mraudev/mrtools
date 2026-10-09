@@ -1,7 +1,7 @@
 import { computed, reactive, watch } from "vue";
 import { api } from "./api";
 import { applyTheme, onSystemThemeChange } from "./theme";
-import { toastError } from "./toast";
+import { toastError } from "@mrtools/ui/lib/toast";
 import { normalizeConfig, orderTabs, watchedCategory } from "./config";
 import {
   defaultSettings,

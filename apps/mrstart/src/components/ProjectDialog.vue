@@ -2,13 +2,13 @@
 import { computed, ref, watch } from "vue";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { Command, FilePlus, FolderCode, FolderOpen, Plus, Sparkles, Trash2, X } from "@lucide/vue";
-import Dialog from "./ui/Dialog.vue";
-import Tip from "./ui/Tip.vue";
+import Dialog from "@mrtools/ui/components/Dialog";
+import Tip from "@mrtools/ui/components/Tip";
 import { api } from "@/lib/api";
 import { baseName } from "@/lib/actions";
 import { folderName } from "@/lib/types";
 import { categories, categoryView, deleteProject, editor, saveProject, store } from "@/lib/store";
-import { toastError } from "@/lib/toast";
+import { toastError } from "@mrtools/ui/lib/toast";
 
 const submitted = ref(false);
 const confirmDelete = ref(false);

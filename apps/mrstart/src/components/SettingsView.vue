@@ -27,14 +27,14 @@ import {
   X,
 } from "@lucide/vue";
 import Section from "./ui/Section.vue";
-import Segmented from "./ui/Segmented.vue";
+import Segmented from "@mrtools/ui/components/Segmented";
 import SecretField from "./ui/SecretField.vue";
-import Tip from "./ui/Tip.vue";
+import Tip from "@mrtools/ui/components/Tip";
 import { api } from "@/lib/api";
 import { openPath } from "@/lib/actions";
 import { addWatchedFolder, categories, openProjectEditor, replaceConfig, store } from "@/lib/store";
-import { toast, toastError } from "@/lib/toast";
-import Dialog from "./ui/Dialog.vue";
+import { toast, toastError } from "@mrtools/ui/lib/toast";
+import Dialog from "@mrtools/ui/components/Dialog";
 import { ACCENTS } from "@/lib/theme";
 import { DEFAULT_COMMANDS, folderName, type GitTool, type ReviewTarget, type Theme } from "@/lib/types";
 import { checkForUpdate, updater } from "@/lib/updater";

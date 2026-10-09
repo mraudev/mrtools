@@ -1,21 +1,17 @@
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   Briefcase,
-  Copy,
   Eye,
   GitPullRequest,
-  Minus,
   Plus,
   RefreshCw,
   Search,
   Settings,
-  Square,
-  X,
 } from "@lucide/vue";
 import logo from "@/assets/logo.svg";
-import Tip from "./ui/Tip.vue";
+import Tip from "@mrtools/ui/components/Tip";
+import WindowControls from "@mrtools/ui/components/WindowControls";
 import { dashboard } from "@/lib/dashboard";
 import { launch } from "@/lib/actions";
 import {
@@ -30,14 +26,7 @@ import {
 } from "@/lib/store";
 import { PULLS, SETTINGS } from "@/lib/types";
 
-const appWindow = getCurrentWindow();
-const maximized = ref(false);
 const filterInput = ref<HTMLInputElement>();
-let unlistenResize: (() => void) | undefined;
-
-async function syncMaximized() {
-  maximized.value = await appWindow.isMaximized();
-}
 
 function onKeydown(event: KeyboardEvent) {
   if (event.key === "F5") {
@@ -53,16 +42,9 @@ function onKeydown(event: KeyboardEvent) {
   }
 }
 
-onMounted(async () => {
-  window.addEventListener("keydown", onKeydown);
-  await syncMaximized();
-  unlistenResize = await appWindow.onResized(syncMaximized);
-});
+onMounted(() => window.addEventListener("keydown", onKeydown));
 
-onUnmounted(() => {
-  window.removeEventListener("keydown", onKeydown);
-  unlistenResize?.();
-});
+onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 
 function selectTab(id: string) {
   store.view = id;
@@ -222,21 +204,6 @@ function finishRename(save: boolean) {
       </Tip>
     </div>
 
-    <div class="flex border-l border-border [&>button]:grid [&>button]:w-11 [&>button]:place-items-center [&>button]:text-muted-foreground [&>button]:transition-colors [&_svg]:size-4">
-      <button class="hover:bg-foreground/8 hover:text-foreground" aria-label="Minimieren" @click="appWindow.minimize()">
-        <Minus />
-      </button>
-      <button
-        class="hover:bg-foreground/8 hover:text-foreground"
-        :aria-label="maximized ? 'Wiederherstellen' : 'Maximieren'"
-        @click="appWindow.toggleMaximize()"
-      >
-        <Copy v-if="maximized" class="-scale-x-100 !size-3.5" />
-        <Square v-else class="!size-3.5" />
-      </button>
-      <button class="hover:bg-red-600 hover:!text-white" aria-label="Schließen" @click="appWindow.close()">
-        <X />
-      </button>
-    </div>
+    <WindowControls />
   </header>
 </template>

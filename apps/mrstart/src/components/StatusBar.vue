@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
 import { CircleAlert, CircleCheck, Download, LoaderCircle, Moon, Sun } from "@lucide/vue";
-import Tip from "./ui/Tip.vue";
+import Tip from "@mrtools/ui/components/Tip";
 import { store } from "@/lib/store";
 import { checkForUpdate, updater } from "@/lib/updater";
 

@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
 import { ArrowRight, Download, LoaderCircle } from "@lucide/vue";
-import Dialog from "./ui/Dialog.vue";
+import Dialog from "@mrtools/ui/components/Dialog";
 import { installUpdate, updater } from "@/lib/updater";
 
 const currentVersion = ref("");
