@@ -1,0 +1,76 @@
+name: Release
+
+# Ein Tag `vX.Y.Z` baut den Windows-Installer, signiert die Update-Pakete und
+# veröffentlicht beides samt `latest.json` als GitHub-Release. Installierte
+# mrstart-Versionen finden das Update über
+# https://github.com/mraudev/mrstart/releases/latest/download/latest.json
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: windows-latest
+    # Die Signatur-Secrets liegen im Environment „release“, das nur für
+    # Tags `v*` freigegeben ist (siehe README).
+    environment: release
+    permissions:
+      contents: write # Release anlegen und Dateien hochladen
+    steps:
+      # Actions sind auf Commit-SHAs festgelegt, damit ein verschobener Tag
+      # keinen fremden Code an den Signaturschlüssel lässt.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Tag gegen package.json prüfen
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME passt nicht zur Version $version in package.json"
+            exit 1
+          fi
+
+      - name: Release-Notizen aus den Commits
+        id: notes
+        shell: bash
+        run: |
+          previous=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          delimiter="NOTES_${GITHUB_RUN_ID}_${RANDOM}${RANDOM}"
+          {
+            echo "body<<$delimiter"
+            git log --no-merges --pretty='- %s' "${previous:+$previous..}$GITHUB_REF_NAME"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        with:
+          toolchain: stable
+
+      # Kein Build-Cache im Release-Job: ein manipulierter Cache aus einem
+      # anderen Lauf könnte sonst in den signierten Build gelangen.
+
+      # --ignore-scripts: keine Install-Skripte aus Abhängigkeiten ausführen.
+      - run: npm ci --ignore-scripts
+
+      # Nur dieser Schritt sieht den Signaturschlüssel.
+      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: mrstart ${{ github.ref_name }}
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: false
+          prerelease: false
