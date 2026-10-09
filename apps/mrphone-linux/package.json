@@ -6,6 +6,7 @@
   "description": "SIP-Softphone als Desktop-App",
   "author": "Michael Rau",
   "main": "src/main.js",
+  "homepage": "https://github.com/mraudev/mrtools/tree/main/apps/mrphone-linux",
   "scripts": {
     "start": "electron .",
     "icon": "electron scripts/make-icon.js",
