@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Nur Lesezugriff – CI braucht keine Schreibrechte und keine Secrets.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      # Actions sind auf Commit-SHAs festgelegt, damit ein verschobener Tag
+      # keinen fremden Code einschleusen kann.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        with:
+          toolchain: stable
+          components: clippy
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      # --ignore-scripts: keine Install-Skripte aus Abhängigkeiten ausführen.
+      - run: npm ci --ignore-scripts
+
+      - name: Frontend (Typecheck + Build, alle Apps)
+        run: npm run build
+
+      - name: Frontend (Tests)
+        run: npm test
+
+      - name: Rust (Clippy + Tests, ganzer Workspace)
+        run: |
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          cargo test --locked --workspace

@@ -1,0 +1,163 @@
+@source "./";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-popover: var(--popover);
+  --color-border: var(--border);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-text: var(--accent-text);
+
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+}
+
+:root {
+  /* --accent and --accent-foreground are set at runtime (src/lib/theme.ts) */
+  --accent: #f59e0b;
+  --accent-foreground: #18181b;
+  --accent-text: color-mix(in oklab, var(--accent) 62%, black);
+
+  --background: #f4f4f6;
+  --foreground: #1c1c21;
+  --card: #ffffff;
+  --popover: #ffffff;
+  --border: rgb(0 0 0 / 0.09);
+  --muted-foreground: #6b6b75;
+  color-scheme: light;
+
+  /* Chart colors (validated: categorical slots 1–2, fixed status palette) */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+  --status-neutral: #898781;
+  --chart-grid: #e1e0d9;
+  --chart-baseline: #c3c2b7;
+}
+
+.dark {
+  --accent-text: var(--accent);
+
+  --background: #131316;
+  --foreground: #ececef;
+  --card: #1b1b1f;
+  --popover: #26262b;
+  --border: rgb(255 255 255 / 0.08);
+  --muted-foreground: #9a9aa3;
+  color-scheme: dark;
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --chart-grid: #2c2c2a;
+  --chart-baseline: #383835;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  @apply bg-background font-sans text-sm text-foreground antialiased;
+  user-select: none;
+}
+
+input,
+textarea {
+  user-select: text;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--foreground) 18%, transparent);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--foreground) 30%, transparent);
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0;
+  }
+  .btn-primary {
+    @apply bg-accent text-accent-foreground hover:bg-accent/85;
+  }
+  .btn-outline {
+    @apply border border-border bg-card hover:bg-foreground/5;
+  }
+  .btn-ghost {
+    @apply hover:bg-foreground/8;
+  }
+  .btn-danger {
+    @apply text-red-500 hover:bg-red-500/10;
+  }
+  .icon-btn {
+    @apply inline-grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/8 hover:text-foreground disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4;
+  }
+  .input {
+    @apply h-8 w-full rounded-md border border-border bg-background px-2.5 text-sm transition-[border-color,box-shadow] outline-none placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/25;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium text-muted-foreground;
+  }
+  .kbd {
+    @apply rounded border border-border bg-foreground/5 px-1 font-mono text-[11px];
+  }
+  .menu {
+    @apply z-50 min-w-52 rounded-lg border border-border bg-popover p-1 text-[13px] shadow-xl;
+  }
+  .menu-item {
+    @apply flex h-8 cursor-default items-center gap-2 rounded-md px-2 outline-none data-[disabled]:opacity-40 data-[highlighted]:bg-foreground/8 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground;
+  }
+  .menu-separator {
+    @apply my-1 h-px bg-border;
+  }
+}
+
+/* Enter animations for reka-ui overlays */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+.anim-fade[data-state="open"],
+.anim-fade[data-state="delayed-open"],
+.anim-fade[data-state="instant-open"] {
+  animation: fade-in 120ms ease-out;
+}
+.anim-pop[data-state="open"] {
+  animation: pop-in 140ms ease-out;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

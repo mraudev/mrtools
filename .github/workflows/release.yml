@@ -1,0 +1,79 @@
+name: Release
+
+# Ein Tag `<app>-v<version>` (z. B. `mrprocs-v0.2.0`) baut den Windows-Installer
+# dieser einen App und veröffentlicht ihn als GitHub-Release. Tags anlegen mit
+# `npm run release -- <app> <patch|minor|major>`.
+on:
+  push:
+    tags: ["*-v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write # Release anlegen und Dateien hochladen
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: App und Version aus dem Tag
+        id: app
+        shell: bash
+        run: |
+          app="${GITHUB_REF_NAME%-v*}"
+          tag_version="${GITHUB_REF_NAME##*-v}"
+          if [ ! -f "apps/$app/package.json" ]; then
+            echo "::error::Keine App apps/$app zum Tag $GITHUB_REF_NAME"
+            exit 1
+          fi
+          version=$(node -p "require('./apps/$app/package.json').version")
+          if [ "$version" != "$tag_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME passt nicht zur Version $version in apps/$app/package.json"
+            exit 1
+          fi
+          echo "name=$app" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # Commits seit dem letzten Release dieser App, die sie oder packages/ui betreffen.
+      - name: Release-Notizen aus den Commits
+        id: notes
+        shell: bash
+        run: |
+          app="${{ steps.app.outputs.name }}"
+          previous=$(git describe --tags --abbrev=0 --match "$app-v*" "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          delimiter="NOTES_${GITHUB_RUN_ID}_${RANDOM}${RANDOM}"
+          {
+            echo "body<<$delimiter"
+            git log --no-merges --pretty='- %s' "${previous:+$previous..}$GITHUB_REF_NAME" -- "apps/$app" packages/ui
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        with:
+          toolchain: stable
+
+      # Kein Build-Cache im Release-Job: ein manipulierter Cache aus einem
+      # anderen Lauf könnte sonst in den veröffentlichten Build gelangen.
+
+      # --ignore-scripts: keine Install-Skripte aus Abhängigkeiten ausführen.
+      - run: npm ci --ignore-scripts
+
+      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/${{ steps.app.outputs.name }}
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ steps.app.outputs.name }} ${{ steps.app.outputs.version }}
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: false
+          prerelease: false

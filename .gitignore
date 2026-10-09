@@ -1,0 +1,20 @@
+node_modules
+dist
+target
+*.local
+*.log
+
+# Generiert von Tauri beim Build
+apps/*/src-tauri/gen/schemas
+
+# Schlüssel und Secrets gehören nie ins Repository
+*.key
+*.pem
+*.pfx
+.env
+.env.*
+
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
