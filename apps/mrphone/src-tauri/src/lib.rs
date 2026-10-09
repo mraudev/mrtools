@@ -1,15 +1,24 @@
-// mrphone – Tauri-Version (im Aufbau, Stufe 1: Oberfläche, Einstellungen, Konten, Kontakte, Verlauf, Kurzwahl).
+// mrphone – Tauri-Version (im Aufbau; Stufe 2: zusätzlich SIP-Anmeldung und Besetztlampenfeld).
 // Die Oberfläche (public/) ist dieselbe wie in der Electron-Version; bridge.js stellt window.phone bereit.
 mod commands;
 mod config;
 mod contacts;
 mod history;
+mod logger;
 mod paths;
+mod phone;
 mod secrets;
+mod sip;
 
 use commands::AppState;
-use std::sync::Mutex;
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Mutex,
+};
+use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+
+// Vor dem Beenden wird bei der Anlage abgemeldet; danach darf die App wirklich enden.
+static STOPPED: AtomicBool = AtomicBool::new(false);
 
 // JSON mit 1 Leerzeichen Einrückung – so schreibt die Electron-Version contacts.json und history.json.
 pub fn json_indent1(value: &serde_json::Value) -> Vec<u8> {
@@ -55,12 +64,32 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            let dir = paths::data_dir()?;
+            let (dir, test_copy) = paths::data_dir()?;
+            logger::init(&dir);
+            logger::info(&format!(
+                "mrphone {} (Tauri) gestartet, Daten in {}",
+                env!("CARGO_PKG_VERSION"),
+                dir.display()
+            ));
             let crypt = secrets::OsCrypt::load_or_create(&dir);
             let mut cfg = config::load(&dir);
             config::load_secrets(&mut cfg, &crypt);
             let theme = cfg["theme"].as_str().unwrap_or("system").to_string();
+            // Testkopie neben der installierten App: deren Anmeldung nicht verdrängen (MRPHONE_CAUTIOUS=0/1 für Tests)
+            let cautious = std::env::var("MRPHONE_CAUTIOUS")
+                .map(|v| v == "1")
+                .unwrap_or(test_copy);
+            let accounts = cfg["accounts"].as_array().cloned().unwrap_or_default();
+            let favorites = cfg["favorites"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|f| f["number"].as_str().map(String::from))
+                .collect();
+            let phone = phone::start(app.handle().clone(), accounts, favorites, cautious);
             app.manage(AppState {
+                phone,
                 contacts: Mutex::new(contacts::Contacts::load(&dir)),
                 history: Mutex::new(history::History::load(&dir)),
                 cfg: Mutex::new(cfg),
@@ -102,6 +131,22 @@ pub fn run() {
             commands::get_favorites,
             commands::save_favorites,
         ])
-        .run(tauri::generate_context!())
-        .expect("mrphone konnte nicht starten");
+        .build(tauri::generate_context!())
+        .expect("mrphone konnte nicht starten")
+        .run(|app, event| {
+            // Beim Beenden erst sauber abmelden (nur die eigene Anmeldung), dann wirklich beenden.
+            if let RunEvent::ExitRequested { api, .. } = event {
+                if STOPPED.load(Ordering::SeqCst) {
+                    return;
+                }
+                api.prevent_exit();
+                let phone = app.state::<AppState>().phone.clone();
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    phone.stop().await;
+                    STOPPED.store(true, Ordering::SeqCst);
+                    app.exit(0);
+                });
+            }
+        });
 }

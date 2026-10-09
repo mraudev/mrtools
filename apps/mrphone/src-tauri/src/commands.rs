@@ -1,6 +1,12 @@
 // Befehle hinter window.phone (src-tauri/src/bridge.js). Entsprechen den ipcMain-Handlern in src/main.js;
 // Telefonie (SIP, Gespräche), CTI, Importe und Sicherung folgen in späteren Stufen.
-use crate::{config, contacts::Contacts, history::History, secrets::OsCrypt};
+use crate::{
+    config,
+    contacts::Contacts,
+    history::History,
+    phone::{PhoneCmd, PhoneHandle},
+    secrets::OsCrypt,
+};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use serde_json::{json, Value};
 use std::{path::PathBuf, sync::Mutex};
@@ -13,6 +19,7 @@ pub struct AppState {
     pub cfg: Mutex<Value>,
     pub contacts: Mutex<Contacts>,
     pub history: Mutex<History>,
+    pub phone: PhoneHandle,
 }
 
 const OPTION_KEYS: [&str; 6] = [
@@ -49,28 +56,11 @@ fn error(msg: impl Into<String>) -> Value {
 impl AppState {
     fn persist(&self, cfg: &Value) {
         if let Err(err) = config::save(&self.dir, cfg, &self.crypt) {
-            eprintln!("config.json konnte nicht gespeichert werden: {err}");
+            crate::logger::warn(&format!(
+                "config.json konnte nicht gespeichert werden: {err}"
+            ));
         }
     }
-}
-
-// Anmeldestatus je Konto; SIP folgt in Stufe 2, bis dahin sind alle Konten abgemeldet.
-pub fn snapshot(cfg: &Value) -> Value {
-    let accounts: Vec<Value> = cfg["accounts"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
-        .iter()
-        .map(|a| {
-            json!({
-                "id": a["id"], "label": a["label"],
-                "aor": format!("sip:{}@{}", text(&a["username"]), text(&a["domain"])),
-                "server": format!("{}:{}", text(&a["proxy"]), text(&a["proxyPort"])),
-                "state": "unregistered", "reason": ""
-            })
-        })
-        .collect();
-    json!({ "accounts": accounts, "call": null })
 }
 
 // Konten fürs Fenster – ohne Zugangsdaten.
@@ -117,13 +107,19 @@ pub fn apply_theme(app: &AppHandle, theme: &str) {
 
 #[tauri::command]
 pub fn get_state(state: State<'_, AppState>) -> Value {
-    snapshot(&state.cfg.lock().unwrap())
+    state.phone.snapshot.lock().unwrap().clone()
 }
 
 #[tauri::command]
-pub fn command(msg: Value) -> Value {
-    let _ = msg;
-    error("Telefonieren kommt in Stufe 2 und 3 der Tauri-Version.")
+pub fn command(state: State<'_, AppState>, msg: Value) -> Value {
+    match msg["type"].as_str() {
+        // „Neu verbinden“ / „Übernehmen“: alle Konten anmelden, auch ruhende
+        Some("register") => {
+            state.phone.send(PhoneCmd::Register);
+            Value::Null
+        }
+        _ => error("Telefonieren kommt in Stufe 3 der Tauri-Version."),
+    }
 }
 
 #[tauri::command]
@@ -185,7 +181,7 @@ pub fn get_accounts(state: State<'_, AppState>) -> Value {
 
 // Legt ein Konto an (ohne id) oder ändert ein bestehendes – wie saveAccount() in src/main.js.
 #[tauri::command]
-pub fn save_account(app: AppHandle, state: State<'_, AppState>, data: Value) -> Value {
+pub fn save_account(state: State<'_, AppState>, data: Value) -> Value {
     let field = |name: &str| text(&data[name]).trim().to_string();
     let (username, domain) = (field("username"), field("domain"));
     if username.is_empty() || domain.is_empty() {
@@ -244,27 +240,35 @@ pub fn save_account(app: AppHandle, state: State<'_, AppState>, data: Value) -> 
         }
     }
     match existing {
-        Some(i) => cfg["accounts"][i] = config::merge(&cfg["accounts"][i], &changes),
+        Some(i) => {
+            cfg["accounts"][i] = config::merge(&cfg["accounts"][i], &changes);
+            state
+                .phone
+                .send(PhoneCmd::Update(cfg["accounts"][i].clone())); // meldet neu an
+        }
         None => {
             let mut account = config::merge(&config::account_defaults(), &changes);
             account["id"] = json!(uuid::Uuid::new_v4().to_string());
-            cfg["accounts"].as_array_mut().unwrap().push(account);
+            cfg["accounts"]
+                .as_array_mut()
+                .unwrap()
+                .push(account.clone());
+            state.phone.send(PhoneCmd::Add(account));
         }
     }
     state.persist(&cfg);
-    let _ = app.emit("phone:state", snapshot(&cfg));
     json!({ "accounts": accounts_view(&cfg) })
 }
 
 #[tauri::command]
-pub fn delete_account(app: AppHandle, state: State<'_, AppState>, id: String) -> Value {
+pub fn delete_account(state: State<'_, AppState>, id: String) -> Value {
     let mut cfg = state.cfg.lock().unwrap();
     cfg["accounts"]
         .as_array_mut()
         .unwrap()
         .retain(|a| text(&a["id"]) != id);
     state.persist(&cfg);
-    let _ = app.emit("phone:state", snapshot(&cfg));
+    state.phone.send(PhoneCmd::Remove(id)); // meldet vorher ab
     json!({ "accounts": accounts_view(&cfg) })
 }
 
@@ -387,13 +391,17 @@ pub fn clear_history(app: AppHandle, state: State<'_, AppState>) {
 
 #[tauri::command]
 pub fn get_favorites(state: State<'_, AppState>) -> Value {
-    json!({ "list": state.cfg.lock().unwrap()["favorites"], "presence": {} })
+    let presence = state.phone.presence.lock().unwrap().clone();
+    json!({ "list": state.cfg.lock().unwrap()["favorites"], "presence": presence })
 }
 
 #[tauri::command]
 pub fn save_favorites(state: State<'_, AppState>, list: Value) -> Value {
     let mut cfg = state.cfg.lock().unwrap();
-    cfg["favorites"] = json!(config::normalize_favorites(&list));
+    let favorites = config::normalize_favorites(&list);
+    let numbers = favorites.iter().map(|f| text(&f["number"])).collect();
+    cfg["favorites"] = json!(favorites);
     state.persist(&cfg);
+    state.phone.send(PhoneCmd::SetFavorites(numbers));
     json!({ "list": cfg["favorites"] })
 }

@@ -19,18 +19,20 @@ fn appdata() -> PathBuf {
     PathBuf::from(std::env::var_os("APPDATA").unwrap_or_default())
 }
 
-pub fn data_dir() -> io::Result<PathBuf> {
+// Liefert den Ordner und ob es die Testkopie neben der installierten App ist (dann startet die
+// Telefonie vorsichtig und verdrängt keine Anmeldung eines anderen Geräts).
+pub fn data_dir() -> io::Result<(PathBuf, bool)> {
     if let Some(dir) = std::env::var_os("MRPHONE_DATA_DIR") {
         let dir = PathBuf::from(dir);
         fs::create_dir_all(&dir)?;
-        return Ok(dir);
+        return Ok((dir, false));
     }
     let dir = appdata().join(TEST_DIR);
     if !dir.exists() {
         fs::create_dir_all(&dir)?;
         copy_legacy_data(&appdata().join(LEGACY_DIR), &dir)?;
     }
-    Ok(dir)
+    Ok((dir, true))
 }
 
 // Einmalig beim ersten Start: Konten, Kontakte, Verlauf, Schlüssel ("Local State") und eigener Klingelton.

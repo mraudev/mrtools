@@ -16,6 +16,10 @@ src-tauri/src/
   contacts.rs      Telefonbuch (contacts.json)
   history.rs       Gesprächsverlauf (history.json)
   paths.rs         Datenordner
+  phone.rs         mehrere SIP-Konten; eigener Thread mit einer Ereignisschleife
+  sip/msg.rs       SIP-Nachrichten lesen/schreiben
+  sip/ua.rs        Benutzeragent: Anmeldung, Digest, Übernahme-Erkennung, Besetztlampenfeld
+  logger.rs        Protokoll sipphone.log im Datenordner
 ```
 
 Die Oberfläche bleibt unverändert; nur die Brücke `window.phone` ist neu. Audio (Mikrofon, Geräteauswahl,
@@ -27,7 +31,7 @@ AudioWorklet) läuft weiter in der WebView (WebView2 = Chromium).
 | --- | --- | --- |
 | 0 | Machbarkeit: Audio in WebView2, binäre IPC im 20-ms-Takt, Electron-Passwörter, Windows-Meldungen mit Knöpfen, WebHID | erledigt |
 | 1 | Brücke, Einstellungen, Konten, Kontakte, Verlauf, Kurzwahl, Klingelton | erledigt |
-| 2 | SIP-Anmeldung (mehrere Konten, Übernahme, BLF) | offen |
+| 2 | SIP-Anmeldung (mehrere Konten, Übernahme, BLF) | erledigt – Anrufe bekommen bis Stufe 3 „besetzt“ |
 | 3 | Gespräche (RTP, Opus/G.722/G.711, DTMF, Halten, Weiterleiten) | offen |
 | 4 | CTI, Sicherung, Importe/Exporte | offen |
 | 5 | Tray, Meldungen, Bildschirmsperre, Headset, Titelleiste, Protokoll | offen |
@@ -38,6 +42,11 @@ AudioWorklet) läuft weiter in der WebView (WebView2 = Chromium).
 Die Electron-Version speichert in `%APPDATA%\SIP Phone`. Solange diese Version im Aufbau ist, arbeitet sie
 auf einer **Kopie** in `%APPDATA%\mrphone-tauri-test` (beim ersten Start angelegt) – die installierte
 Electron-App bleibt unberührt. `MRPHONE_DATA_DIR` setzt einen anderen Ordner (Selbsttests).
+
+Auf der Testkopie startet die Telefonie **vorsichtig**: Ist das Konto schon an einem anderen Gerät angemeldet
+(z. B. der installierten Electron-App), zeigt mrphone „An anderem Gerät“ und meldet sich erst nach
+*Übernehmen* an. Für Selbsttests: `MRPHONE_CAUTIOUS=0/1`, `MRPHONE_SIP_BIND=127.0.0.1` (nur lokal lauschen,
+keine Firewall-Abfrage), `SIP_TRACE=1` (SIP-Mitschnitt im Protokoll).
 
 ## Entwicklung
 
