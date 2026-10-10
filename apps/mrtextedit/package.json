@@ -1,7 +1,7 @@
 {
   "name": "mrtextedit",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "WYSIWYG-Texteditor mit konfigurierbarer Toolleiste und eigenen Absatz- und Zeichenformaten",
   "author": "Michael Rau <dev@mraudev.com>",
   "type": "module",
