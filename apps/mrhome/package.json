@@ -1,7 +1,7 @@
 {
   "name": "mrhome",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Licht und Heizung steuern (Hue, Govee, tado°)",
   "author": "Michael Rau <dev@mraudev.com>",
   "type": "module",
