@@ -59,6 +59,9 @@ jobs:
       - name: Rust-Tests mrports
         run: cargo test --locked -p mrports
 
+      - name: Rust-Tests mrhome
+        run: cargo test --locked -p mrhome
+
       - name: Rust-Tests mrstart
         run: cargo test --locked -p mrstart
 
