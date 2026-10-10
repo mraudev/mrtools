@@ -81,9 +81,9 @@ die `apps/mrprocs` oder `packages/ui` betreffen. mrtools findet das Release übe
 Der Release-Job läuft im Environment `release` (*Settings → Environments*, nur Tags `*-v*` erlaubt).
 
 **Auto-Update:** Alle Apps aktualisieren sich selbst (`bundle.createUpdaterArtifacts` in ihrer
-`tauri.conf.json`). mrtools, mrprocs und mrdiskspace nutzen dafür `@mrtools/ui/lib/updater` und die Leiste
+`tauri.conf.json`). mrtools, mrprocs, mrdiskspace und mrfilesys nutzen dafür `@mrtools/ui/lib/updater` und die Leiste
 `UpdateBar` (Prüfung beim Start und alle 4 Stunden, stiller Download, „Neu starten“ oder Installation beim
-Beenden); mrstart hat seinen eigenen Update-Dialog. Weil sich alle Apps die „Latest“-Release des Repositorys teilen, fragt jede dieser Apps
+Beenden); mrstart und mrphone haben ihren eigenen Updater. Weil sich alle Apps die „Latest“-Release des Repositorys teilen, fragt jede dieser Apps
 eine feste Adresse ab: das Release `<app>-latest`, in das der Workflow nach jedem Release der App die
 `latest.json` kopiert. Die Update-Pakete werden mit dem Schlüssel aus den Secrets des Environments signiert
 (ein Schlüssel für alle Apps) – Einzelheiten in [apps/mrstart/README.md](apps/mrstart/README.md). Für eine
