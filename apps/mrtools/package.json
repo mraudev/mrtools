@@ -1,7 +1,7 @@
 {
   "name": "mrtools",
   "private": true,
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Installiert, aktualisiert und startet die mrtools-Apps",
   "author": "Michael Rau <dev@mraudev.com>",
   "type": "module",
