@@ -1,7 +1,7 @@
 {
   "name": "mrfilesys",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Dateien und Ordner durchsuchen und verwalten",
   "author": "Michael Rau <dev@mraudev.com>",
   "type": "module",
