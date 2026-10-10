@@ -2493,6 +2493,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "mrports"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "png 0.18.1",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "tauri-plugin-updater",
+ "tauri-plugin-window-state",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "mrprocs"
 version = "0.1.0"
 dependencies = [

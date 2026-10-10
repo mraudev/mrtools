@@ -9,6 +9,7 @@ und reka-ui, Aufbau und Aussehen wie [mrstart](apps/mrstart).
 | [mrprocs](apps/mrprocs)            | Zeigt alle laufenden Prozesse             | 1440     |
 | [mrdiskspace](apps/mrdiskspace)    | Zeigt, wo der Plattenplatz bleibt         | 1450     |
 | [mrfilesys](apps/mrfilesys)        | Dateien und Ordner durchsuchen und verwalten | 1460  |
+| [mrports](apps/mrports)            | Zeigt, welcher Prozess welchen Port belegt | 1470    |
 | [mrstart](apps/mrstart)            | Desktop-Launcher für Entwicklungsprojekte | 1420     |
 | [mrphone](apps/mrphone)            | SIP-Softphone (Nachfolger der Electron-Version) | –    |
 | [mrphone-linux](apps/mrphone-linux) | mrphone für Linux (Electron, AppImage/.deb) | –     |

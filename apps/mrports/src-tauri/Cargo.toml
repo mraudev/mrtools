@@ -1,0 +1,38 @@
+[package]
+name = "mrports"
+version = "0.1.0"
+description = "Zeigt, welcher Prozess welchen Port belegt"
+authors = ["Michael Rau <dev@mraudev.com>"]
+edition = "2021"
+
+[lib]
+# The `_lib` suffix avoids a name clash between the lib and the bin on Windows,
+# see https://github.com/rust-lang/cargo/issues/8519
+name = "mrports_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-window-state = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+png = "0.18"
+base64 = "0.22"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_NetworkManagement_IpHelper",
+  "Win32_Networking_WinSock",
+  "Win32_Security",
+  "Win32_System_Threading",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }

@@ -56,6 +56,9 @@ jobs:
       - name: Rust-Tests mrfilesys
         run: cargo test --locked -p mrfilesys
 
+      - name: Rust-Tests mrports
+        run: cargo test --locked -p mrports
+
       - name: Rust-Tests mrstart
         run: cargo test --locked -p mrstart
 
