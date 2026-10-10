@@ -1,0 +1,578 @@
+.mrte {
+  --mrte-accent: #f59e0b;
+  --mrte-bg: #ffffff;
+  --mrte-fg: #1c1c21;
+  --mrte-toolbar-bg: #f7f7f8;
+  --mrte-border: rgb(0 0 0 / 0.12);
+  --mrte-muted: #6b6b75;
+  --mrte-hover: rgb(0 0 0 / 0.06);
+  --mrte-active-fg: color-mix(in oklab, var(--mrte-accent) 62%, black);
+  --mrte-link: #2563eb;
+  --mrte-font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --mrte-mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--mrte-bg);
+  color: var(--mrte-fg);
+  font-family: var(--mrte-font);
+  font-size: 14px;
+  color-scheme: light;
+}
+
+.mrte[data-theme="dark"] {
+  --mrte-bg: #1b1b1f;
+  --mrte-fg: #ececef;
+  --mrte-toolbar-bg: #222227;
+  --mrte-border: rgb(255 255 255 / 0.1);
+  --mrte-muted: #9a9aa3;
+  --mrte-hover: rgb(255 255 255 / 0.08);
+  --mrte-active-fg: var(--mrte-accent);
+  --mrte-link: #60a5fa;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  .mrte[data-theme="auto"] {
+    --mrte-bg: #1b1b1f;
+    --mrte-fg: #ececef;
+    --mrte-toolbar-bg: #222227;
+    --mrte-border: rgb(255 255 255 / 0.1);
+    --mrte-muted: #9a9aa3;
+    --mrte-hover: rgb(255 255 255 / 0.08);
+    --mrte-active-fg: var(--mrte-accent);
+    --mrte-link: #60a5fa;
+    color-scheme: dark;
+  }
+}
+
+.mrte *,
+.mrte *::before,
+.mrte *::after {
+  box-sizing: border-box;
+}
+
+/* Toolbar */
+
+.mrte-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--mrte-border);
+  background: var(--mrte-toolbar-bg);
+  user-select: none;
+}
+.mrte-toolbar[hidden] {
+  display: none;
+}
+
+.mrte-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--mrte-muted);
+  transition: background-color 0.1s, color 0.1s;
+}
+.mrte-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.mrte-btn:hover:not(:disabled) {
+  background: var(--mrte-hover);
+  color: var(--mrte-fg);
+}
+.mrte-btn[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--mrte-accent) 18%, transparent);
+  color: var(--mrte-active-fg);
+}
+.mrte-btn:disabled {
+  opacity: 0.35;
+}
+
+.mrte-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--mrte-border);
+}
+
+.mrte-select,
+.mrte-input {
+  height: 28px;
+  border: 1px solid var(--mrte-border);
+  border-radius: 6px;
+  background: var(--mrte-bg);
+  color: var(--mrte-fg);
+  font: inherit;
+  font-size: 13px;
+}
+.mrte-select {
+  min-width: 9rem;
+  max-width: 14rem;
+  padding: 0 4px;
+}
+.mrte-select:disabled {
+  opacity: 0.5;
+}
+.mrte-input {
+  width: 18rem;
+  padding: 0 8px;
+}
+
+.mrte-btn:focus-visible,
+.mrte-select:focus-visible,
+.mrte-input:focus,
+.mrte-text-btn:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--mrte-accent) 70%, transparent);
+  outline-offset: -1px;
+}
+
+.mrte-popover {
+  position: absolute;
+  z-index: 20;
+  padding: 6px;
+  border: 1px solid var(--mrte-border);
+  border-radius: 8px;
+  background: var(--mrte-bg);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+
+.mrte-text-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--mrte-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--mrte-fg);
+  font: inherit;
+  font-size: 13px;
+}
+.mrte-text-btn:hover {
+  background: var(--mrte-hover);
+}
+.mrte-text-btn.mrte-primary {
+  border-color: transparent;
+  background: var(--mrte-accent);
+  color: #18181b;
+}
+.mrte-text-btn[hidden] {
+  display: none;
+}
+
+/* Toolbar extras: narrow select, colour bar, popover contents */
+
+.mrte-select-narrow {
+  min-width: 4.5rem;
+}
+.mrte-btn {
+  position: relative;
+}
+.mrte-color-bar {
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  bottom: 4px;
+  height: 3px;
+  border-radius: 2px;
+}
+.mrte-btn:has(.mrte-color-bar) svg {
+  margin-top: -3px;
+}
+.mrte-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mrte-row[hidden] {
+  display: none;
+}
+
+.mrte-menu,
+.mrte-colors {
+  display: flex;
+  flex-direction: column;
+  min-width: 13rem;
+}
+.mrte-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--mrte-fg);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+.mrte-menu-item:hover:not(:disabled),
+.mrte-menu-item:focus-visible {
+  background: var(--mrte-hover);
+  outline: none;
+}
+.mrte-menu-item:disabled {
+  opacity: 0.4;
+}
+.mrte-menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--mrte-border);
+}
+
+.mrte-grid-label {
+  margin-bottom: 6px;
+  color: var(--mrte-muted);
+  font-size: 12px;
+  text-align: center;
+}
+.mrte-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 18px);
+  gap: 3px;
+}
+.mrte-grid-cell {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--mrte-border);
+  border-radius: 3px;
+  background: var(--mrte-bg);
+}
+.mrte-grid-cell.mrte-grid-on {
+  border-color: var(--mrte-accent);
+  background: color-mix(in oklab, var(--mrte-accent) 30%, transparent);
+}
+
+.mrte-swatches {
+  display: grid;
+  grid-template-columns: repeat(10, 20px);
+  gap: 4px;
+  padding: 6px 8px;
+}
+.mrte-swatch {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid rgb(0 0 0 / 0.15);
+  border-radius: 4px;
+}
+.mrte-swatch:hover,
+.mrte-swatch:focus-visible {
+  outline: 2px solid var(--mrte-accent);
+  outline-offset: 1px;
+}
+.mrte-custom-color input {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.mrte-chars {
+  display: grid;
+  grid-template-columns: repeat(10, 28px);
+  gap: 2px;
+}
+.mrte-char {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--mrte-fg);
+  font-size: 15px;
+}
+.mrte-char:hover,
+.mrte-char:focus-visible {
+  background: var(--mrte-hover);
+  outline: none;
+}
+.mrte-chars-wide {
+  grid-column: 1 / -1;
+  justify-content: center;
+}
+
+/* Search bar, status bar, fullscreen */
+
+.mrte-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--mrte-border);
+  background: var(--mrte-toolbar-bg);
+}
+.mrte-search[hidden] {
+  display: none;
+}
+.mrte-search .mrte-input {
+  width: 14rem;
+}
+.mrte-search-count {
+  min-width: 6.5rem;
+  color: var(--mrte-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.mrte-content .mrte-match {
+  border-radius: 2px;
+  background: rgb(250 204 21 / 0.45);
+}
+.mrte-content .mrte-match-current {
+  background: rgb(249 115 22 / 0.6);
+}
+
+.mrte-statusbar {
+  padding: 3px 10px;
+  border-top: 1px solid var(--mrte-border);
+  background: var(--mrte-toolbar-bg);
+  color: var(--mrte-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.mrte-statusbar[hidden] {
+  display: none;
+}
+
+.mrte.mrte-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  height: auto;
+}
+
+/* Content – low specificity (:where) so format CSS always wins. */
+
+.mrte-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  cursor: text;
+}
+
+.mrte-source {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  margin: 0;
+  padding: 16px 20px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: var(--mrte-bg);
+  color: var(--mrte-fg);
+  font-family: var(--mrte-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  user-select: text;
+}
+.mrte-source[hidden] {
+  display: none;
+}
+
+.mrte-content {
+  min-height: 100%;
+  padding: 16px 20px;
+  outline: none;
+  line-height: 1.55;
+  overflow-wrap: break-word;
+  user-select: text;
+}
+
+:where(.mrte-content) > :first-child {
+  margin-top: 0;
+}
+:where(.mrte-content) p {
+  margin: 0 0 0.6em;
+}
+:where(.mrte-content) :is(h1, h2, h3, h4, h5, h6) {
+  margin: 0.9em 0 0.4em;
+  line-height: 1.25;
+  font-weight: 600;
+}
+:where(.mrte-content) h1 {
+  font-size: 1.75em;
+}
+:where(.mrte-content) h2 {
+  font-size: 1.4em;
+}
+:where(.mrte-content) h3 {
+  font-size: 1.2em;
+}
+:where(.mrte-content) :is(h4, h5, h6) {
+  font-size: 1em;
+}
+:where(.mrte-content) :is(ul, ol) {
+  margin: 0 0 0.6em;
+  padding-left: 1.6em;
+}
+:where(.mrte-content) li > p {
+  margin: 0.1em 0;
+}
+:where(.mrte-content) blockquote {
+  margin: 0 0 0.6em;
+  padding-left: 1em;
+  border-left: 3px solid var(--mrte-border);
+  color: var(--mrte-muted);
+}
+:where(.mrte-content) code {
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+  background: var(--mrte-hover);
+  font-family: var(--mrte-mono);
+  font-size: 0.9em;
+}
+:where(.mrte-content) pre {
+  padding: 0.6em 0.8em;
+  border-radius: 6px;
+  background: var(--mrte-hover);
+  font-family: var(--mrte-mono);
+}
+:where(.mrte-content) pre code {
+  padding: 0;
+  background: none;
+}
+:where(.mrte-content) hr {
+  margin: 1em 0;
+  border: 0;
+  border-top: 1px solid var(--mrte-border);
+}
+:where(.mrte-content) a {
+  color: var(--mrte-link);
+}
+:where(.mrte-content) hr.ProseMirror-selectednode {
+  border-top-color: var(--mrte-accent);
+}
+
+:where(.mrte-content) table {
+  width: 100%;
+  margin: 0 0 0.6em;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+:where(.mrte-content) :is(td, th) {
+  position: relative;
+  min-width: 2em;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in oklab, var(--mrte-fg) 25%, transparent);
+  vertical-align: top;
+}
+:where(.mrte-content) th {
+  background: var(--mrte-hover);
+  font-weight: 600;
+  text-align: left;
+}
+:where(.mrte-content) :is(td, th) > p {
+  margin: 0;
+}
+.mrte-content .tableWrapper {
+  overflow-x: auto;
+}
+.mrte-content .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklab, var(--mrte-accent) 22%, transparent);
+  pointer-events: none;
+}
+.mrte-content .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: -2px;
+  width: 4px;
+  background: var(--mrte-accent);
+  pointer-events: none;
+}
+.mrte-content.resize-cursor {
+  cursor: col-resize;
+}
+
+:where(.mrte-content) img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.mrte-content [data-resize-container] {
+  max-width: 100%;
+}
+.mrte-content [data-resize-handle] {
+  z-index: 2;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--mrte-bg);
+  border-radius: 3px;
+  background: var(--mrte-accent);
+  opacity: 0;
+}
+.mrte-content [data-resize-handle="top-left"] {
+  cursor: nwse-resize;
+}
+.mrte-content [data-resize-handle="bottom-right"] {
+  cursor: nwse-resize;
+}
+.mrte-content [data-resize-handle="top-right"],
+.mrte-content [data-resize-handle="bottom-left"] {
+  cursor: nesw-resize;
+}
+.mrte-content .ProseMirror-selectednode [data-resize-handle],
+.mrte-content [data-resize-container]:hover [data-resize-handle],
+.mrte-content [data-resize-state="true"] [data-resize-handle] {
+  opacity: 1;
+}
+.mrte-content img.ProseMirror-selectednode,
+.mrte-content .ProseMirror-selectednode img {
+  outline: 2px solid var(--mrte-accent);
+}
+
+:where(.mrte-content) ul[data-type="taskList"] {
+  padding-left: 0.3em;
+  list-style: none;
+}
+:where(.mrte-content) ul[data-type="taskList"] li {
+  display: flex;
+  gap: 0.5em;
+  align-items: flex-start;
+}
+:where(.mrte-content) ul[data-type="taskList"] li > label {
+  flex: none;
+  margin-top: 0.2em;
+  user-select: none;
+}
+:where(.mrte-content) ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+:where(.mrte-content) ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--mrte-muted);
+  text-decoration: line-through;
+}
+:where(.mrte-content) ul[data-type="taskList"] input[type="checkbox"] {
+  accent-color: var(--mrte-accent);
+}
+
+.mrte-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--mrte-muted);
+  pointer-events: none;
+}
+
+.mrte-content ::selection {
+  background: color-mix(in oklab, var(--mrte-accent) 35%, transparent);
+}

@@ -1,0 +1,36 @@
+{
+  "name": "mrtextedit",
+  "private": true,
+  "version": "0.1.0",
+  "description": "WYSIWYG-Texteditor mit konfigurierbarer Toolleiste und eigenen Absatz- und Zeichenformaten",
+  "author": "Michael Rau <dev@mraudev.com>",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "tauri": "tauri",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@lucide/vue": "^1.51.0",
+    "@mrtools/textedit": "*",
+    "@mrtools/ui": "*",
+    "@tauri-apps/api": "^2.12.1",
+    "@tauri-apps/plugin-dialog": "^2.8.1",
+    "@tauri-apps/plugin-updater": "^2.13.1",
+    "reka-ui": "^2.10.5",
+    "vue": "^3.5.43"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/cli": "^2.12.1",
+    "@types/node": "^22.20.5",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "jsdom": "^30.1.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3",
+    "vue-tsc": "^3.3.12"
+  }
+}

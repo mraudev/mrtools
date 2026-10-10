@@ -1,0 +1,23 @@
+[package]
+name = "mrtextedit"
+version = "0.1.0"
+description = "WYSIWYG-Texteditor mit konfigurierbarer Toolleiste und eigenen Absatz- und Zeichenformaten"
+authors = ["Michael Rau <dev@mraudev.com>"]
+edition = "2021"
+
+[lib]
+# The `_lib` suffix avoids a name clash between the lib and the bin on Windows,
+# see https://github.com/rust-lang/cargo/issues/8519
+name = "mrtextedit_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-window-state = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

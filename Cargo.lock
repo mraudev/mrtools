@@ -2606,6 +2606,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mrtextedit"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-updater",
+ "tauri-plugin-window-state",
+]
+
+[[package]]
 name = "mrtools"
 version = "0.1.0"
 dependencies = [
