@@ -1,7 +1,7 @@
 {
   "name": "mrports",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Zeigt, welcher Prozess welchen Port belegt",
   "author": "Michael Rau <dev@mraudev.com>",
   "type": "module",
