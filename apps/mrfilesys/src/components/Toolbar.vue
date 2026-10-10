@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
-import { ArrowLeft, ArrowRight, ArrowUp, ChevronRight, LoaderCircle, Monitor, RefreshCw, Search, X } from "@lucide/vue";
+import { ArrowLeft, ArrowRight, ArrowUp, ChevronRight, Globe, LoaderCircle, Monitor, RefreshCw, Search, X } from "@lucide/vue";
 import Tip from "@mrtools/ui/components/Tip";
 import { toastError } from "@mrtools/ui/lib/toast";
 import { api } from "@/lib/api";
 import { openEntry } from "@/lib/actions";
 import { drag } from "@/lib/dnd";
+import { search } from "@/lib/search";
 import { crumbs, normalizePath, parentPath } from "@/lib/paths";
 import { canGoBack, canGoForward, goBack, goForward, goUp, navigate, refresh, state } from "@/lib/store";
 
@@ -41,10 +42,11 @@ async function submit() {
 function onSearchKeydown(event: KeyboardEvent) {
   if (event.key === "Escape") {
     state.filter = "";
+    search.everywhere = false;
     (event.target as HTMLInputElement).blur();
   } else if (event.key === "ArrowDown" || event.key === "Enter") {
     event.preventDefault();
-    document.getElementById("file-list")?.focus();
+    (document.getElementById("search-results") ?? document.getElementById("file-list"))?.focus();
   }
 }
 </script>
@@ -107,13 +109,28 @@ function onSearchKeydown(event: KeyboardEvent) {
       </div>
     </div>
 
-    <div class="relative ml-1 w-64 shrink-0">
+    <Tip :text="search.everywhere ? 'Nur im Ordner filtern (Strg+F)' : 'Alle Laufwerke durchsuchen (Strg+Umschalt+F)'" side="bottom">
+      <button
+        class="icon-btn ml-1"
+        :class="search.everywhere && 'bg-accent/15 text-accent-text'"
+        aria-label="Alle Laufwerke durchsuchen"
+        :aria-pressed="search.everywhere"
+        @click="(search.everywhere = !search.everywhere), ($refs.searchInput as HTMLInputElement).focus()"
+      >
+        <Globe />
+      </button>
+    </Tip>
+    <div class="relative w-72 shrink-0">
       <Search class="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
       <input
         id="search"
+        ref="searchInput"
         v-model="state.filter"
         class="input pr-7 pl-8"
-        :placeholder="state.path ? 'Im Ordner filtern (Strg+F)' : 'Filtern (Strg+F)'"
+        :class="search.everywhere && 'border-accent/60'"
+        :placeholder="
+          search.everywhere ? 'Alle Laufwerke durchsuchen …' : state.path ? 'Im Ordner filtern (Strg+F)' : 'Filtern (Strg+F)'
+        "
         spellcheck="false"
         @keydown="onSearchKeydown"
       />

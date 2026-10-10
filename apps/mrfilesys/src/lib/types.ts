@@ -23,11 +23,31 @@ export interface Entry {
   link: boolean;
 }
 
-export interface FolderSize {
+export interface Measure {
   size: number;
+  /** Rounded up to whole clusters (approximately what Explorer shows). */
+  onDisk: number;
   files: number;
   dirs: number;
+  /** Entries that could not be read. */
   errors: number;
+}
+
+export interface ItemInfo {
+  /** ms since 1970, 0 if unknown. */
+  accessed: number;
+  /** Files only. */
+  onDisk: number | null;
+  /** Program that opens files of this type. */
+  openWith: string | null;
+  /** Target of a symbolic link or junction. */
+  linkTarget: string | null;
+}
+
+export interface Hashes {
+  sha256: string;
+  sha1: string;
+  md5: string;
 }
 
 export interface Clipboard {
@@ -80,3 +100,29 @@ export interface TransferDone {
 }
 
 export type SortKey = "name" | "modified" | "type" | "size";
+
+export interface SearchHit {
+  name: string;
+  path: string;
+  isDir: boolean;
+  /** Bytes, 0 for folders and deleted files. */
+  size: number;
+  /** ms since 1970, 0 if the file is gone. */
+  modified: number;
+}
+
+export interface SearchResults {
+  /** All matches – `hits` holds only the first ones. */
+  total: number;
+  hits: SearchHit[];
+  elapsedMs: number;
+}
+
+export interface IndexStatus {
+  /** Entries in the index, 0 if there is none yet. */
+  entries: number;
+  builtAt: number;
+  building: boolean;
+  /** Entries read so far while building. */
+  scanned: number;
+}

@@ -5,7 +5,12 @@ Dateien und Ordner durchsuchen und verwalten – ähnlich wie der Windows-Explor
 ## Funktionen
 
 - **Seitenleiste** mit „Dieser PC“, eigenen **Favoriten**, Schnellzugriff (Desktop, Downloads, Dokumente, …)
-  und Laufwerken mit Belegung
+  und Laufwerken mit Belegung; jeder Abschnitt lässt sich zuklappen
+- **Suche über alle Laufwerke** (<kbd>Strg</kbd>+<kbd>Umschalt</kbd>+<kbd>F</kbd> oder der Globus neben dem Suchfeld):
+  findet Dateien und Ordner nach Namensteilen sofort, auch mit `*.pdf` oder Pfadteilen wie `projekte\ bericht`.
+  Dafür liest mrfilesys einmal alle Dateinamen der lokalen Laufwerke in einen eigenen Index ein (bei ~2,7 Mio.
+  Einträgen ca. 15 s im Hintergrund, ca. 190 MB im Speicher). Der Index wird auf der Platte zwischengespeichert,
+  beim Start erneuert, wenn er älter als 30 Minuten ist, und lässt sich per Knopf sofort erneuern
 - **Favoriten** für Ordner und Dateien: per Kontextmenü oder durch Ziehen auf „Favoriten“ bzw. zwischen zwei
   Favoriten anheften (auch aus dem Explorer), per Ziehen umsortieren. Mitten auf einen Favoriten-Ordner gezogen
   wird wie gewohnt hineinverschoben bzw. -kopiert
@@ -16,7 +21,11 @@ Dateien und Ordner durchsuchen und verwalten – ähnlich wie der Windows-Explor
 - **Detailbereich** (<kbd>Alt</kbd>+<kbd>P</kbd>) mit Vorschau für Bilder, Videos, Audio und Text, Eigenschaften
   und Berechnung der Ordnergröße
 - **Kontextmenü**: Öffnen, Öffnen mit …, Terminal hier öffnen, Im Explorer zeigen, Favoriten, Ausschneiden/Kopieren/
-  Einfügen, Pfad kopieren, Umbenennen, Papierkorb, endgültig löschen, Windows-Eigenschaften
+  Einfügen, Pfad kopieren, Umbenennen, Papierkorb, endgültig löschen, Eigenschaften
+- **Eigenschaften** (<kbd>Alt</kbd>+<kbd>Enter</kbd>, auch für mehrere Elemente): Name, Ort, Öffnen mit, Größe und Größe auf
+  dem Datenträger (Ordner werden im Hintergrund durchgezählt), Bildabmessungen, Ziel von Verknüpfungen, alle Zeiten,
+  Attribute „Schreibgeschützt“ und „Versteckt“ zum Anhaken, **Prüfsummen** (SHA-256, SHA-1, MD5) mit Vergleich.
+  Für Freigabe und Sicherheit öffnet ein Knopf die Windows-Eigenschaften
 - **Neu**: Ordner und Textdokument, direkt im Umbenennen-Modus
 - **Endgültig löschen** (<kbd>Umschalt</kbd>+<kbd>Entf</kbd>) ohne vorheriges Durchzählen und parallel – bei sehr vielen
   Dateien (z. B. `node_modules`) deutlich schneller als im Explorer. Fortschritt und Abbrechen in der Statusleiste;

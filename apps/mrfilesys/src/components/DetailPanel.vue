@@ -6,12 +6,12 @@ import EntryIcon from "./EntryIcon.vue";
 import Tip from "@mrtools/ui/components/Tip";
 import { toastError } from "@mrtools/ui/lib/toast";
 import { api } from "@/lib/api";
-import { openEntry, showInExplorer, showProperties } from "@/lib/actions";
+import { openEntry, openProperties, showInExplorer } from "@/lib/actions";
 import { previewOf, typeLabel } from "@/lib/fileTypes";
 import { formatBytes, formatCount, formatDate } from "@/lib/format";
 import { baseName } from "@/lib/paths";
 import { selectedEntries, state } from "@/lib/store";
-import type { Entry, FolderSize } from "@/lib/types";
+import type { Entry, Measure } from "@/lib/types";
 
 /** The selected entry, or the current folder when nothing is selected. */
 const entry = computed<Entry | undefined>(() => {
@@ -38,7 +38,7 @@ const selectionSize = computed(() => selectedEntries.value.reduce((sum, e) => su
 const text = ref<string | null>(null);
 const textLoading = ref(false);
 const imageFailed = ref(false);
-const size = ref<FolderSize | null>(null);
+const size = ref<Measure | null>(null);
 const sizing = ref(false);
 
 const attributes = computed(() => {
@@ -81,7 +81,7 @@ async function computeSize() {
   if (!path) return;
   sizing.value = true;
   try {
-    const result = await api.folderSize(path);
+    const result = await api.measure([path]);
     if (entry.value?.path === path) size.value = result;
   } catch (e) {
     toastError("Größe konnte nicht berechnet werden", e);
@@ -135,7 +135,7 @@ async function computeSize() {
             <button class="icon-btn" aria-label="Im Explorer zeigen" @click="showInExplorer(entry.path)"><FolderSearch /></button>
           </Tip>
           <Tip text="Eigenschaften (Alt+Enter)">
-            <button class="icon-btn" aria-label="Eigenschaften" @click="showProperties(entry.path)"><Info /></button>
+            <button class="icon-btn" aria-label="Eigenschaften" @click="openProperties([entry.path])"><Info /></button>
           </Tip>
         </div>
 

@@ -7,6 +7,8 @@ import ConflictDialog from "./components/ConflictDialog.vue";
 import DetailPanel from "./components/DetailPanel.vue";
 import DragOverlay from "./components/DragOverlay.vue";
 import FileList from "./components/FileList.vue";
+import PropertiesDialog from "./components/PropertiesDialog.vue";
+import SearchResults from "./components/SearchResults.vue";
 import Sidebar from "./components/Sidebar.vue";
 import StatusBar from "./components/StatusBar.vue";
 import ThisPC from "./components/ThisPC.vue";
@@ -23,12 +25,13 @@ import {
   deleteSelection,
   openTerminal,
   paste,
-  showProperties,
+  openProperties,
   startRename,
 } from "./lib/actions";
 import { initDeletion } from "./lib/deletion";
 import { initExternalDrop } from "./lib/dnd";
 import { initTransfer } from "./lib/transfer";
+import { initSearch, search, searchEverywhere, searching } from "./lib/search";
 import { baseName } from "./lib/paths";
 import { goBack, goForward, goUp, initStore, refresh, selectAll, selectedEntries, settings, state } from "./lib/store";
 import "@mrtools/ui/lib/theme";
@@ -54,13 +57,19 @@ function onKeydown(event: KeyboardEvent) {
   // Work everywhere, also while typing in the filter.
   if (event.key === "F5") return run(() => refresh());
   if ((ctrl && key === "l") || (event.altKey && key === "d") || event.key === "F4") return run(() => toolbar.value?.editAddress());
-  if ((ctrl && key === "f") || event.key === "F3") return run(() => (document.getElementById("search") as HTMLInputElement)?.select());
+  if (ctrl && event.shiftKey && key === "f") return run(searchEverywhere);
+  if ((ctrl && key === "f") || event.key === "F3") {
+    return run(() => {
+      search.everywhere = false;
+      (document.getElementById("search") as HTMLInputElement)?.select();
+    });
+  }
   if (event.altKey && event.key === "ArrowLeft") return run(goBack);
   if (event.altKey && event.key === "ArrowRight") return run(goForward);
   if (event.altKey && event.key === "ArrowUp") return run(goUp);
   if (ctrl && key === "h") return run(() => (settings.showHidden = !settings.showHidden));
   if (event.altKey && key === "p") return run(() => (settings.showDetails = !settings.showDetails));
-  if (typing || state.confirmDelete.length) return;
+  if (typing || state.confirmDelete.length || state.properties.length) return;
 
   if (event.key === "Backspace") return run(goUp);
   if (ctrl && event.shiftKey && key === "n") return run(() => createNew(true));
@@ -72,10 +81,7 @@ function onKeydown(event: KeyboardEvent) {
   if (ctrl && key === "t" && state.path) return run(() => openTerminal(state.path));
   if (event.key === "Delete") return run(() => deleteSelection(event.shiftKey));
   if (event.key === "F2" && paths.length === 1) return run(() => startRename(paths[0]));
-  if (event.altKey && event.key === "Enter") {
-    const target = paths.length === 1 ? paths[0] : state.path;
-    if (target) run(() => showProperties(target));
-  }
+  if (event.altKey && event.key === "Enter") return run(() => openProperties(paths.length ? paths : [state.path].filter(Boolean)));
 }
 
 // The back and forward buttons on the mouse.
@@ -91,6 +97,7 @@ onMounted(() => {
   initExternalDrop();
   initDeletion();
   initTransfer();
+  initSearch();
   startUpdateChecks();
 });
 
@@ -111,7 +118,8 @@ onUnmounted(() => {
           <Sidebar />
         </div>
         <div class="flex min-w-0 flex-1 flex-col bg-background">
-          <template v-if="state.path">
+          <SearchResults v-if="searching()" />
+          <template v-else-if="state.path">
             <CommandBar />
             <div class="min-h-0 flex-1">
               <FileList />
@@ -146,6 +154,7 @@ onUnmounted(() => {
       </template>
     </Dialog>
     <ConflictDialog />
+    <PropertiesDialog />
     <DragOverlay />
     <Toaster />
   </TooltipProvider>

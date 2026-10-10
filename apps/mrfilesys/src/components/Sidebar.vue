@@ -21,11 +21,12 @@ import {
 } from "@lucide/vue";
 import { ref } from "vue";
 import EntryIcon from "./EntryIcon.vue";
+import SectionHeader from "./SectionHeader.vue";
 import { openEntry, openTerminal, showInExplorer } from "@/lib/actions";
 import { beginFavoriteDrag, drag } from "@/lib/dnd";
 import { formatBytes } from "@/lib/format";
 import { baseName, isInside } from "@/lib/paths";
-import { isFavorite, navigate, settings, state, toggleFavorite, type Place } from "@/lib/store";
+import { isCollapsed, isFavorite, navigate, settings, state, toggleFavorite, toggleSection, type Place } from "@/lib/store";
 import type { Drive } from "@/lib/types";
 
 const placeIcons: Record<Place["icon"], unknown> = {
@@ -67,7 +68,7 @@ const dropping = "ring-2 ring-accent ring-inset bg-accent/20";
   <ContextMenuRoot>
     <ContextMenuTrigger as-child>
       <nav
-        class="flex h-full flex-col gap-4 overflow-y-auto px-2 py-3"
+        class="flex h-full flex-col gap-3 overflow-y-auto px-2 py-3"
         aria-label="Orte"
         @contextmenu.capture="(menuPath = ''), (menuIsDir = true)"
       >
@@ -78,51 +79,53 @@ const dropping = "ring-2 ring-accent ring-inset bg-accent/20";
         </section>
 
         <section v-if="settings.favorites.length || drag.active" data-pin-zone>
-          <h2
-            class="mb-1 rounded px-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase"
-            :class="drag.pin === 0 && !settings.favorites.length && 'text-accent-text'"
-          >
-            Favoriten
-          </h2>
-          <button
-            v-for="(fav, i) in settings.favorites"
-            :key="fav.path"
-            class="relative"
-            :class="[
-              item,
-              active(fav.path) ? current : idle,
-              drag.op && drag.target === fav.path && dropping,
-              drag.reorder && drag.paths[0] === fav.path && 'opacity-50',
-            ]"
-            :data-pin-index="i"
-            :data-drop="fav.isDir ? fav.path : undefined"
-            :title="fav.path"
-            @click="openEntry(fav)"
-            @pointerdown="beginFavoriteDrag($event, fav.path)"
-            @contextmenu="(menuPath = fav.path), (menuIsDir = fav.isDir)"
-          >
-            <span v-if="drag.pin === i" class="absolute inset-x-1 -top-px h-0.5 rounded-full bg-accent" />
-            <span
-              v-if="drag.pin === i + 1 && i === settings.favorites.length - 1"
-              class="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-accent"
-            />
-            <Star v-if="fav.isDir" class="text-accent-text" fill="currentColor" fill-opacity="0.25" />
-            <EntryIcon v-else :entry="{ name: fav.path, isDir: false, link: false }" />
-            <span class="truncate">{{ baseName(fav.path) }}</span>
-          </button>
-          <div
-            v-if="!settings.favorites.length"
-            class="mx-1 rounded-md border border-dashed px-2 py-2 text-center text-xs"
-            :class="drag.pin >= 0 ? 'border-accent bg-accent/10 text-accent-text' : 'border-border text-muted-foreground'"
-          >
-            Hierher ziehen zum Anheften
-          </div>
+          <SectionHeader
+            label="Favoriten"
+            :open="!isCollapsed('favorites') || drag.active"
+            :class="drag.pin === 0 && !settings.favorites.length && '[&_button]:text-accent-text'"
+            @toggle="toggleSection('favorites')"
+          />
+          <template v-if="!isCollapsed('favorites') || drag.active">
+            <button
+              v-for="(fav, i) in settings.favorites"
+              :key="fav.path"
+              class="relative"
+              :class="[
+                item,
+                active(fav.path) ? current : idle,
+                drag.op && drag.target === fav.path && dropping,
+                drag.reorder && drag.paths[0] === fav.path && 'opacity-50',
+              ]"
+              :data-pin-index="i"
+              :data-drop="fav.isDir ? fav.path : undefined"
+              :title="fav.path"
+              @click="openEntry(fav)"
+              @pointerdown="beginFavoriteDrag($event, fav.path)"
+              @contextmenu="(menuPath = fav.path), (menuIsDir = fav.isDir)"
+            >
+              <span v-if="drag.pin === i" class="absolute inset-x-1 -top-px h-0.5 rounded-full bg-accent" />
+              <span
+                v-if="drag.pin === i + 1 && i === settings.favorites.length - 1"
+                class="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-accent"
+              />
+              <Star v-if="fav.isDir" class="text-accent-text" fill="currentColor" fill-opacity="0.25" />
+              <EntryIcon v-else :entry="{ name: fav.path, isDir: false, link: false }" />
+              <span class="truncate">{{ baseName(fav.path) }}</span>
+            </button>
+            <div
+              v-if="!settings.favorites.length"
+              class="mx-1 rounded-md border border-dashed px-2 py-2 text-center text-xs"
+              :class="drag.pin >= 0 ? 'border-accent bg-accent/10 text-accent-text' : 'border-border text-muted-foreground'"
+            >
+              Hierher ziehen zum Anheften
+            </div>
+          </template>
         </section>
 
         <section>
-          <h2 class="mb-1 px-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Schnellzugriff</h2>
+          <SectionHeader label="Schnellzugriff" :open="!isCollapsed('places')" @toggle="toggleSection('places')" />
           <button
-            v-for="place in state.places"
+            v-for="place in isCollapsed('places') ? [] : state.places"
             :key="place.path"
             :class="[item, active(place.path) ? current : idle, drag.op && drag.target === place.path && dropping]"
             :data-drop="place.path"
@@ -136,9 +139,9 @@ const dropping = "ring-2 ring-accent ring-inset bg-accent/20";
         </section>
 
         <section>
-          <h2 class="mb-1 px-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Laufwerke</h2>
+          <SectionHeader label="Laufwerke" :open="!isCollapsed('drives')" @toggle="toggleSection('drives')" />
           <button
-            v-for="drive in state.drives"
+            v-for="drive in isCollapsed('drives') ? [] : state.drives"
             :key="drive.path"
             class="h-auto flex-col items-stretch gap-1 py-1.5"
             :class="[item, isInside(state.path, drive.path) ? current : idle, drag.op && drag.target === drive.path && dropping]"
