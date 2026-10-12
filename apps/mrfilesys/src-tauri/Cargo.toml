@@ -26,6 +26,8 @@ sha2 = "0.10"
 sha1 = "0.10"
 md-5 = "0.10"
 memchr = "2"
+png = "0.18"
+base64 = "0.22"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
@@ -38,10 +40,14 @@ windows-sys = { version = "0.61", features = [
   "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging",
 ] }
-# COM interfaces for dragging files out of the window (same version as Tauri's).
+# COM interfaces for dragging files out of the window and for icons (same version as Tauri's).
 windows = { version = "0.62", features = [
+  "Win32_Graphics_Gdi",
+  "Win32_Storage_FileSystem",
   "Win32_System_Com",
   "Win32_System_Ole",
   "Win32_UI_Shell",
+  "Win32_UI_Controls",
   "Win32_UI_Shell_Common",
+  "Win32_UI_WindowsAndMessaging",
 ] }

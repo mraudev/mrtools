@@ -1,6 +1,7 @@
 mod delete;
 mod drives;
 mod files;
+mod icons;
 mod props;
 mod search;
 mod shell;
@@ -15,6 +16,7 @@ pub fn run() {
         .manage(delete::Deletions::default())
         .manage(transfer::Transfers::default())
         .manage(search::Search::default())
+        .manage(icons::Icons::default())
         .setup(|app| {
             search::init(app.handle());
             Ok(())
@@ -47,6 +49,7 @@ pub fn run() {
             search::search,
             search::search_status,
             search::rebuild_index,
+            icons::file_icons,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

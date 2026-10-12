@@ -113,7 +113,7 @@ async function computeSize() {
         />
         <video v-else-if="preview === 'video'" :src="src" controls class="max-h-72 max-w-full rounded" />
         <div v-else-if="preview === 'audio'" class="flex w-full flex-col items-center gap-3">
-          <EntryIcon :entry="entry" class="size-14" :stroke-width="1.25" />
+          <EntryIcon :entry="entry" size="large" class="size-14" :stroke-width="1.25" />
           <audio :src="src" controls class="w-full" />
         </div>
         <pre
@@ -122,7 +122,7 @@ async function computeSize() {
           >{{ text.slice(0, 20_000) }}</pre
         >
         <LoaderCircle v-else-if="textLoading" class="size-5 animate-spin text-muted-foreground" />
-        <EntryIcon v-else :entry="entry" class="size-16" :stroke-width="1.25" />
+        <EntryIcon v-else :entry="entry" size="large" class="size-16" :stroke-width="1.25" />
       </div>
 
       <div class="flex flex-col gap-3 p-3">

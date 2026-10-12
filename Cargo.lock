@@ -2490,8 +2490,10 @@ dependencies = [
 name = "mrfilesys"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "md-5",
  "memchr",
+ "png 0.18.1",
  "rayon",
  "serde",
  "serde_json",

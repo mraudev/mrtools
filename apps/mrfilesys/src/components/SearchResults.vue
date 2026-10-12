@@ -159,7 +159,7 @@ function since(ms: number) {
               @contextmenu="(cursor = i), (menuHit = h)"
             >
               <div class="flex min-w-0 items-center gap-2 px-2">
-                <EntryIcon :entry="{ name: h.name, isDir: h.isDir, link: false }" class="size-4" />
+                <EntryIcon :entry="{ name: h.name, isDir: h.isDir, link: false, path: h.path }" class="size-4" />
                 <span class="truncate">
                   {{ parts(h.name)[0] }}<mark class="rounded-sm bg-accent/30 text-inherit">{{ parts(h.name)[1] }}</mark>{{ parts(h.name)[2] }}
                 </span>

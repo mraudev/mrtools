@@ -42,7 +42,7 @@ function usage(drive: Drive) {
             @click="openEntry(fav)"
           >
             <Star v-if="fav.isDir" class="size-4.5 shrink-0 text-accent-text" fill="currentColor" fill-opacity="0.25" />
-            <EntryIcon v-else :entry="{ name: fav.path, isDir: false, link: false }" class="size-4.5" />
+            <EntryIcon v-else :entry="{ name: fav.path, isDir: false, link: false, path: fav.path }" class="size-4.5" />
             <span class="min-w-0">
               <span class="block truncate font-medium">{{ baseName(fav.path) }}</span>
               <span class="block truncate text-xs text-muted-foreground">{{ fav.path }}</span>

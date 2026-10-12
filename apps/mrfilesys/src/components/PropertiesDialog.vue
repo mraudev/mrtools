@@ -179,7 +179,7 @@ const iconSrc = computed(() =>
     <template #icon>
       <div class="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-accent/10">
         <img v-if="iconSrc" :src="iconSrc" alt="" class="size-full object-cover" />
-        <EntryIcon v-else-if="single" :entry="single" class="size-6" />
+        <EntryIcon v-else-if="single" :entry="single" size="large" class="size-7" />
         <Files v-else class="size-6 text-accent-text" />
       </div>
     </template>

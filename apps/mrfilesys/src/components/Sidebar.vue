@@ -109,7 +109,7 @@ const dropping = "ring-2 ring-accent ring-inset bg-accent/20";
                 class="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-accent"
               />
               <Star v-if="fav.isDir" class="text-accent-text" fill="currentColor" fill-opacity="0.25" />
-              <EntryIcon v-else :entry="{ name: fav.path, isDir: false, link: false }" />
+              <EntryIcon v-else :entry="{ name: fav.path, isDir: false, link: false, path: fav.path }" class="size-4" />
               <span class="truncate">{{ baseName(fav.path) }}</span>
             </button>
             <div

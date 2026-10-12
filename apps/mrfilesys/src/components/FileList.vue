@@ -230,7 +230,7 @@ const sortColumns: { key: SortKey; label: string; class: string }[] = [
                   @click="onItemClick($event, entry)"
                   @dblclick="openEntry(entry)"
                 >
-                  <EntryIcon :entry="entry" class="size-10" :stroke-width="1.5" />
+                  <EntryIcon :entry="entry" size="large" class="size-10" :stroke-width="1.5" />
                   <RenameInput v-if="state.renaming === entry.path" :path="entry.path" :name="entry.name" class="w-full text-center" />
                   <span v-else class="line-clamp-2 w-full text-xs leading-4 break-words">{{ entry.name }}</span>
                 </div>

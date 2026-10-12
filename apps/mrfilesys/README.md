@@ -41,6 +41,7 @@ Dateien und Ordner durchsuchen und verwalten – ähnlich wie der Windows-Explor
   auf demselben Laufwerk wird verschoben, sonst kopiert (<kbd>Strg</kbd> kopiert, <kbd>Umschalt</kbd> verschiebt).
   Aus dem Fenster heraus in Explorer, Desktop oder andere Apps ziehen, und Dateien von dort hineinziehen
 - Ordner werden beim Zurückkehren ins Fenster neu eingelesen
+- **Echte Windows-Symbole** wie im Explorer (auch Programm-Icons, Verknüpfungen und Sonderordner)
 - Dunkles/helles Design
 - **Automatische Updates**: Prüfung beim Start und alle 4 Stunden, stiller Download, danach „Neu starten“
   oder Installation beim Beenden
