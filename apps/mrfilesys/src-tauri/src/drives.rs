@@ -22,6 +22,11 @@ pub async fn list_drives() -> Result<Vec<Drive>, String> {
         .map_err(|e| e.to_string())
 }
 
+/// Roots of the local fixed drives (`C:\`, …) – what the search index covers.
+pub(crate) fn fixed_roots() -> Vec<String> {
+    imp::list().into_iter().filter(|d| d.kind == "fixed").map(|d| d.path).collect()
+}
+
 #[cfg(windows)]
 mod imp {
     use super::Drive;

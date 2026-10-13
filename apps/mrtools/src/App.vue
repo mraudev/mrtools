@@ -6,10 +6,10 @@ import AppsView from "./components/AppsView.vue";
 import ConfirmUninstall from "./components/ConfirmUninstall.vue";
 import StatusBar from "./components/StatusBar.vue";
 import TitleBar from "./components/TitleBar.vue";
-import UpdateBar from "./components/UpdateBar.vue";
+import UpdateBar from "@mrtools/ui/components/UpdateBar";
 import Toaster from "@mrtools/ui/components/Toaster";
 import { refresh, state } from "./lib/store";
-import { startUpdateChecks } from "./lib/updater";
+import { startUpdateChecks } from "@mrtools/ui/lib/updater";
 import "@mrtools/ui/lib/theme";
 
 onMounted(() => {

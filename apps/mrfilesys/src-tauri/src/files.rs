@@ -26,16 +26,6 @@ pub struct Entry {
     link: bool,
 }
 
-#[derive(Serialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct FolderSize {
-    size: u64,
-    files: u64,
-    dirs: u64,
-    /// Entries that could not be read.
-    errors: u64,
-}
-
 const FILE_ATTRIBUTE_READONLY: u32 = 0x1;
 const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
 const FILE_ATTRIBUTE_SYSTEM: u32 = 0x4;
@@ -239,42 +229,6 @@ fn text_of(buf: &[u8]) -> Option<String> {
     Some(text)
 }
 
-fn walk(path: &Path, total: &mut FolderSize) {
-    let Ok(entries) = fs::read_dir(path) else {
-        total.errors += 1;
-        return;
-    };
-    for entry in entries {
-        let Ok(entry) = entry else {
-            total.errors += 1;
-            continue;
-        };
-        match entry.metadata() {
-            Ok(meta) if meta.is_symlink() => {}
-            Ok(meta) if meta.is_dir() => {
-                total.dirs += 1;
-                walk(&entry.path(), total);
-            }
-            Ok(meta) => {
-                total.files += 1;
-                total.size += meta.len();
-            }
-            Err(_) => total.errors += 1,
-        }
-    }
-}
-
-/// Total size of a folder and everything below it (links are not followed).
-#[tauri::command]
-pub async fn folder_size(path: String) -> Result<FolderSize, String> {
-    blocking(move || {
-        let mut total = FolderSize::default();
-        walk(&normalize(&path), &mut total);
-        Ok(total)
-    })
-    .await
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -314,18 +268,6 @@ mod tests {
         // "ä" cut in half at the end
         assert_eq!(text_of(b"ab\xC3").as_deref(), Some("ab"));
         assert_eq!(text_of(b"gr\xFC\xDF").as_deref(), Some("grüß"));
-    }
-
-    #[test]
-    fn folder_size_counts_recursively() {
-        let dir = temp_dir("size");
-        fs::write(dir.join("a"), "12345").unwrap();
-        fs::create_dir(dir.join("sub")).unwrap();
-        fs::write(dir.join("sub").join("b"), "123").unwrap();
-        let mut total = FolderSize::default();
-        walk(&dir, &mut total);
-        assert_eq!((total.size, total.files, total.dirs, total.errors), (8, 2, 1, 0));
-        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

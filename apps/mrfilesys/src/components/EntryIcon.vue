@@ -1,41 +1,52 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import {
   AppWindow,
+  ArrowUpRight,
   File,
   FileArchive,
   FileCode,
   FileImage,
   FileMusic,
   FileSpreadsheet,
-  FileSymlink,
   FileText,
   FileVideoCamera,
   Folder,
-  FolderSymlink,
 } from "@lucide/vue";
 import { kindOf } from "@/lib/fileTypes";
+import { iconKey, icons, requestIcon, type IconSize } from "@/lib/icons";
 import type { Entry } from "@/lib/types";
 
-const props = defineProps<{ entry: Pick<Entry, "name" | "isDir" | "link"> }>();
+/**
+ * The Windows icon of a file or folder, as in Explorer. Until it has loaded (or if Windows has none)
+ * a symbol for the file type is shown. The caller sets the size via `class`.
+ */
+const props = withDefaults(
+  defineProps<{ entry: Pick<Entry, "name" | "isDir" | "link"> & { path?: string }; size?: IconSize }>(),
+  { size: "small" },
+);
+
+const key = computed(() => iconKey(props.entry));
+watch([key, () => props.size], ([k, size]) => requestIcon(k, size), { immediate: true });
+const src = computed(() => icons.get(`${props.size}|${key.value}`) ?? null);
 
 const kind = computed(() => kindOf(props.entry));
-const icon = computed(() => {
-  if (props.entry.link) return props.entry.isDir ? FolderSymlink : FileSymlink;
-  return {
-    folder: Folder,
-    image: FileImage,
-    video: FileVideoCamera,
-    audio: FileMusic,
-    archive: FileArchive,
-    code: FileCode,
-    text: FileText,
-    table: FileSpreadsheet,
-    pdf: FileText,
-    program: AppWindow,
-    file: File,
-  }[kind.value];
-});
+const fallback = computed(
+  () =>
+    ({
+      folder: Folder,
+      image: FileImage,
+      video: FileVideoCamera,
+      audio: FileMusic,
+      archive: FileArchive,
+      code: FileCode,
+      text: FileText,
+      table: FileSpreadsheet,
+      pdf: FileText,
+      program: AppWindow,
+      file: File,
+    })[kind.value],
+);
 const color = computed(
   () =>
     ({
@@ -55,5 +66,22 @@ const color = computed(
 </script>
 
 <template>
-  <component :is="icon" class="shrink-0" :class="color" :fill="kind === 'folder' ? 'currentColor' : 'none'" :fill-opacity="0.18" />
+  <span class="relative inline-grid shrink-0 place-items-center">
+    <img v-if="src" :src="src" alt="" class="size-full object-contain" draggable="false" />
+    <component
+      :is="fallback"
+      v-else
+      class="size-full"
+      :class="color"
+      :fill="kind === 'folder' ? 'currentColor' : 'none'"
+      :fill-opacity="0.18"
+    />
+    <!-- Symbolic links and junctions, like Explorer's shortcut arrow -->
+    <span
+      v-if="entry.link"
+      class="absolute -bottom-0.5 -left-0.5 grid size-[45%] min-h-2.5 min-w-2.5 place-items-center rounded-sm bg-white text-blue-600 shadow-sm"
+    >
+      <ArrowUpRight class="size-[85%]" :stroke-width="3" />
+    </span>
+  </span>
 </template>

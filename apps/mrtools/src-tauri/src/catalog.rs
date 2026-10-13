@@ -54,6 +54,7 @@ mod tests {
     fn catalog_lists_the_other_apps() {
         let folders: Vec<_> = entries().into_iter().map(|e| e.folder).collect();
         assert!(folders.contains(&"mrstart".to_string()));
+        assert!(folders.contains(&"mrphone".to_string()));
         assert!(!folders.contains(&"mrtools".to_string()));
     }
 }

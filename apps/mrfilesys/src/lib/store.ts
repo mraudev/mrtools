@@ -20,6 +20,8 @@ interface Settings {
   showHidden: boolean;
   showDetails: boolean;
   favorites: Favorite[];
+  /** Sidebar sections that are collapsed. */
+  collapsed: string[];
   lastPath: string;
 }
 
@@ -31,6 +33,7 @@ const defaults: Settings = {
   showHidden: false,
   showDetails: true,
   favorites: [],
+  collapsed: [],
   lastPath: "",
 };
 
@@ -71,6 +74,8 @@ export const state = reactive({
   cut: new Set<string>(),
   /** Paths waiting for confirmation of permanent deletion. */
   confirmDelete: [] as string[],
+  /** Paths shown in the properties dialog (empty: closed). */
+  properties: [] as string[],
   drives: [] as Drive[],
   places: [] as Place[],
 });
@@ -261,6 +266,16 @@ export async function pinFavorites(paths: string[], index: number) {
     items.filter((f): f is Favorite => f !== null),
     index,
   );
+}
+
+export function isCollapsed(section: string) {
+  return settings.collapsed.includes(section);
+}
+
+export function toggleSection(section: string) {
+  settings.collapsed = isCollapsed(section)
+    ? settings.collapsed.filter((s) => s !== section)
+    : [...settings.collapsed, section];
 }
 
 export function sortBy(key: SortKey) {

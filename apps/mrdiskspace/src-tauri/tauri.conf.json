@@ -31,6 +31,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "publisher": "Michael Rau",
     "shortDescription": "Zeigt, wo der Plattenplatz bleibt",
     "icon": [
@@ -44,6 +45,17 @@
       "nsis": {
         "installMode": "currentUser",
         "languages": ["German", "English"]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNFMDhERTZBQkVGN0NCOTIKUldTU3kvZSthdDRJUGorVjcvT3ZUeDRvc3ptaC82MGhuczRUSkVuV3JzSnpTcEVnMVoyeCtYNDcK",
+      "endpoints": [
+        "https://github.com/mraudev/mrtools/releases/download/mrdiskspace-latest/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

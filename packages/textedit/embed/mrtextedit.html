@@ -1,0 +1,78 @@
+<!doctype html>
+<!--
+  Editor page for hosts with an embedded WebView2, e.g. VCL TEdgeBrowser.
+  Built as dist/mrtextedit.html (script inlined, a single file to ship).
+
+  Host → page (ExecuteScript or PostWebMessageAsJson):
+    mrte.setHtml(html)         {"type":"setHtml","html":"…"}
+    mrte.insertHtml(html)      {"type":"insertHtml","html":"…"}   at the cursor, e.g. a text block
+    mrte.setConfig(config)     {"type":"setConfig","config":{…}}
+    mrte.setReadOnly(bool)     {"type":"setReadOnly","readOnly":true}
+    mrte.focus()               {"type":"focus"}
+    mrte.getHtml() / getText() (ExecuteScript result)
+
+  Page → host (string messages, WebMessageReceived → TryGetWebMessageAsString):
+    {"type":"ready"}                         page loaded – now send config and content
+    {"type":"change","html":"…","text":"…"}  the user changed the text
+    {"type":"content","html":"…","text":"…"} after setHtml (the HTML as the editor normalised it)
+-->
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mrtextedit</title>
+    <style>
+      html,
+      body,
+      #editor {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+      }
+    </style>
+    <script src="mrtextedit.js"></script>
+  </head>
+  <body>
+    <div id="editor"></div>
+    <script>
+      (() => {
+        const webview = window.chrome && window.chrome.webview;
+        const post = (message) => webview && webview.postMessage(JSON.stringify(message));
+        const editor = MrTextEdit.create(document.getElementById("editor"), {
+          onChange: () => send("change"),
+        });
+        const send = (type) => post({ type, html: editor.getHTML(), text: editor.getText() });
+
+        window.mrte = {
+          editor,
+          setHtml(html) {
+            editor.setHTML(html || "");
+            send("content");
+          },
+          insertHtml: (html) => editor.insertHTML(html || ""),
+          getHtml: () => editor.getHTML(),
+          getText: () => editor.getText(),
+          setConfig: (config) => editor.setConfig(typeof config === "string" ? JSON.parse(config) : config || {}),
+          setReadOnly: (readOnly) => editor.setReadOnly(!!readOnly),
+          focus: () => editor.focus(),
+        };
+
+        webview?.addEventListener("message", (event) => {
+          const message = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+          if (message.type === "setHtml") mrte.setHtml(message.html);
+          else if (message.type === "insertHtml") mrte.insertHtml(message.html);
+          else if (message.type === "setConfig") mrte.setConfig(message.config);
+          else if (message.type === "setReadOnly") mrte.setReadOnly(message.readOnly);
+          else if (message.type === "focus") mrte.focus();
+        });
+
+        // Ctrl+R/F5/Ctrl+P would reload or print the whole page inside the host (the editor prints itself).
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "F5" || (event.ctrlKey && ["r", "p"].includes(event.key.toLowerCase()))) event.preventDefault();
+        });
+
+        post({ type: "ready" });
+      })();
+    </script>
+  </body>
+</html>

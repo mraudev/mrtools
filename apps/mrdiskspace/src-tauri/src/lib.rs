@@ -7,6 +7,7 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(scan::Scanner::default())
         .invoke_handler(tauri::generate_handler![
             drives::list_drives,

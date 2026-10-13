@@ -32,7 +32,14 @@ export function openSelection() {
 }
 
 export const openWith = (path: string) => attempt("„Öffnen mit“ fehlgeschlagen", () => api.openWith(path));
-export const showProperties = (path: string) => attempt("Eigenschaften nicht verfügbar", () => api.properties(path));
+/** Explorer's own properties dialog (sharing, security, previous versions, …). */
+export const showWindowsProperties = (path: string) =>
+  attempt("Eigenschaften nicht verfügbar", () => api.properties(path));
+
+/** The app's properties dialog for one or several entries. */
+export function openProperties(paths: string[]) {
+  if (paths.length) state.properties = [...paths];
+}
 export const openTerminal = (dir: string) => attempt("Terminal konnte nicht gestartet werden", () => api.openTerminal(dir));
 export const showInExplorer = (path: string) => attempt("Explorer konnte nicht geöffnet werden", () => revealItemInDir(path));
 

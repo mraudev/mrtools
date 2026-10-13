@@ -41,7 +41,7 @@ import {
   openWith,
   paste,
   showInExplorer,
-  showProperties,
+  openProperties,
   startRename,
 } from "@/lib/actions";
 import { isFavorite, refresh, selectedEntries, state, toggleFavorite } from "@/lib/store";
@@ -99,12 +99,10 @@ const single = computed(() => (entries.value.length === 1 ? entries.value[0] : u
         <ContextMenuItem class="menu-item text-red-500 [&_svg]:!text-red-500" @select="deletePaths(paths, true)">
           <X />Endgültig löschen …<span class="kbd ml-auto">Umschalt+Entf</span>
         </ContextMenuItem>
-        <template v-if="single">
-          <ContextMenuSeparator class="menu-separator" />
-          <ContextMenuItem class="menu-item" @select="showProperties(single.path)">
-            <Info />Eigenschaften<span class="kbd ml-auto">Alt+Enter</span>
-          </ContextMenuItem>
-        </template>
+        <ContextMenuSeparator class="menu-separator" />
+        <ContextMenuItem class="menu-item" @select="openProperties(paths)">
+          <Info />Eigenschaften<span class="kbd ml-auto">Alt+Enter</span>
+        </ContextMenuItem>
       </template>
 
       <template v-else-if="state.path">
@@ -132,7 +130,7 @@ const single = computed(() => (entries.value.length === 1 ? entries.value[0] : u
           <template v-else><Star />Zu Favoriten hinzufügen</template>
         </ContextMenuItem>
         <ContextMenuSeparator class="menu-separator" />
-        <ContextMenuItem class="menu-item" @select="showProperties(state.path)"><Info />Eigenschaften</ContextMenuItem>
+        <ContextMenuItem class="menu-item" @select="openProperties([state.path])"><Info />Eigenschaften</ContextMenuItem>
       </template>
     </ContextMenuContent>
   </ContextMenuPortal>

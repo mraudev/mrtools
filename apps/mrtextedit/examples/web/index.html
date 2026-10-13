@@ -1,0 +1,99 @@
+<!doctype html>
+<!--
+  mrtextedit in a plain web page. Needs packages/textedit/dist/mrtextedit.js
+  (npm run build -w packages/textedit); in your own project copy that one file next to the page.
+-->
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mrtextedit – Web-Beispiel</title>
+    <script src="../../../../packages/textedit/dist/mrtextedit.js"></script>
+    <style>
+      body {
+        max-width: 960px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        font-family: system-ui, sans-serif;
+      }
+      mr-textedit {
+        height: 360px;
+        border: 1px solid #d4d4d8;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      pre {
+        min-height: 3em;
+        padding: 0.75rem;
+        background: #f4f4f5;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>mrtextedit im Web</h1>
+
+    <!-- 1. As a custom element (also a form field: name="text") -->
+    <form id="form">
+      <mr-textedit
+        id="editor"
+        name="text"
+        config='{
+          "toolbar": ["undo", "redo", "|", "paragraphFormat", "characterFormat", "|", "bold", "italic", "underline", "|", "alignLeft", "alignCenter", "alignRight", "|", "bulletList", "orderedList", "|", "link", "clearFormat"],
+          "paragraphFormats": [
+            { "label": "Standard" },
+            { "label": "Überschrift", "tag": "h2" },
+            { "label": "Zitat", "class": "zitat", "css": "font-style: italic; margin-left: 2em; color: #52525b" },
+            { "label": "Hinweis", "class": "hinweis", "css": "padding: .5em .75em; border-left: 4px solid #f59e0b; background: #fef3c7" }
+          ],
+          "characterFormats": [
+            { "label": "Markiert", "class": "marker", "css": "background: #fde68a" },
+            { "label": "Produktname", "class": "produkt", "css": "font-variant: small-caps; font-weight: 600" }
+          ],
+          "placeholder": "Text eingeben …",
+          "theme": "light"
+        }'
+      >
+        <h2>Willkommen</h2>
+        <p>Dieser Text kommt aus dem HTML der Seite. <span class="marker">Markiert</span> ist ein Zeichenformat.</p>
+        <p class="zitat">Und das hier ist ein Absatz im Format „Zitat“.</p>
+      </mr-textedit>
+      <p>
+        <button type="button" id="load">Text hineingeben</button>
+        <button type="submit">Formular absenden</button>
+      </p>
+    </form>
+
+    <h2>HTML (live)</h2>
+    <pre id="out"></pre>
+
+    <!-- 2. Programmatically, without custom element -->
+    <h2>Per JavaScript</h2>
+    <div id="plain" style="height: 200px; border: 1px solid #d4d4d8; border-radius: 8px; overflow: hidden"></div>
+
+    <script>
+      const editor = document.getElementById("editor");
+      const out = document.getElementById("out");
+      const show = () => (out.textContent = editor.value);
+      editor.addEventListener("change", show);
+      show();
+
+      document.getElementById("load").addEventListener("click", () => {
+        editor.value = '<p>Neuer Text mit <strong>fett</strong> und <span class="produkt">mrtextedit</span>.</p>';
+        show();
+      });
+      document.getElementById("form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        alert("Formularfeld text = " + new FormData(event.target).get("text"));
+      });
+
+      const plain = MrTextEdit.create(document.getElementById("plain"), {
+        toolbar: ["bold", "italic", "|", "bulletList"],
+        content: "<p>Nur drei Knöpfe.</p>",
+        theme: "light",
+        onChange: () => console.log(plain.getHTML()),
+      });
+    </script>
+  </body>
+</html>

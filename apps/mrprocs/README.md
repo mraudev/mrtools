@@ -22,6 +22,8 @@ Zeigt alle laufenden Prozesse – ähnlich wie Task-Manager oder Process Explore
 - **Systemübersicht**: CPU- und Speicherverlauf, Zahl der Prozesse, Threads und Handles, Spitzenreiter
 - Neustart **als Administrator** per Knopfdruck – nötig für Details und Aktionen bei Systemprozessen
 - Dunkles/helles Design
+- **Automatische Updates**: Prüfung beim Start und alle 4 Stunden, stiller Download, danach „Neu starten“
+  oder Installation beim Beenden
 
 ## Technik
 

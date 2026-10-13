@@ -1,6 +1,9 @@
 mod delete;
 mod drives;
 mod files;
+mod icons;
+mod props;
+mod search;
 mod shell;
 mod transfer;
 
@@ -9,8 +12,15 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(delete::Deletions::default())
         .manage(transfer::Transfers::default())
+        .manage(search::Search::default())
+        .manage(icons::Icons::default())
+        .setup(|app| {
+            search::init(app.handle());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             drives::list_drives,
             files::list_dir,
@@ -18,7 +28,10 @@ pub fn run() {
             files::rename,
             files::create,
             files::read_text,
-            files::folder_size,
+            props::measure,
+            props::item_info,
+            props::set_attributes,
+            props::hashes,
             shell::open_path,
             shell::open_with,
             shell::properties,
@@ -33,6 +46,10 @@ pub fn run() {
             transfer::check_conflicts,
             transfer::start_transfer,
             transfer::cancel_transfer,
+            search::search,
+            search::search_status,
+            search::rebuild_index,
+            icons::file_icons,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
