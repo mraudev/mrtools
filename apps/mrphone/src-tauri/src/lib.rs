@@ -94,7 +94,7 @@ pub fn run() {
             logger::init(&dir);
             logger::info(&format!(
                 "mrphone {} (Tauri) gestartet, Daten in {}",
-                env!("CARGO_PKG_VERSION"),
+                app.package_info().version,
                 dir.display()
             ));
             let crypt = secrets::OsCrypt::load_or_create(&dir);
@@ -175,6 +175,7 @@ pub fn run() {
             commands::get_version,
             commands::open_log,
             commands::log_headset,
+            commands::log_audio,
             desktop::window_control,
             updater::get_update,
             updater::install_update,

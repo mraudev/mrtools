@@ -49,6 +49,9 @@
     logHeadset: (text) => {
       invoke('log_headset', { text: String(text) }).catch(() => {});
     },
+    logAudio: (text) => {
+      invoke('log_audio', { text: String(text) }).catch(() => {});
+    },
     getUpdate: () => invoke('get_update'),
     installUpdate: () => invoke('install_update'),
     onUpdate: (cb) => on('phone:update', cb),

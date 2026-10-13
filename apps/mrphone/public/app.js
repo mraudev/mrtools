@@ -45,6 +45,10 @@ const REG_LABELS = {
 let state = { accounts: [], call: null }; // accounts: Anmeldestatus je Konto (id, label, aor, state, reason)
 let audio = null; // { ctx, node, ringCtx }
 let mic = null; // null | 'pending' | { stream, source }
+let micGen = 0; // je Öffnen neu – ein spät fertiges, abgelöstes Öffnen wird verworfen
+let micLive = false; // Mikrofon freigegeben (im Gespräch); beim Klingeln/Wählen schon offen, aber stumm
+let micChunkAt = 0; // letzter Block vom Mikrofon (performance.now())
+let micWatch = null; // Überwachung im Gespräch (setInterval)
 let muted = false;
 let audioCfg = { microphone: '', speaker: '', ringer: '' }; // Gerätenamen aus config.json
 let devices = [];
@@ -308,13 +312,13 @@ function updateCallStatus() {
 }
 
 let toastTimer;
-function toast(text, error = false) {
+function toast(text, error = false, ms = 3500) {
   const el = $('toast');
   el.textContent = text;
   el.classList.toggle('error', error);
   el.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (el.hidden = true), 3500);
+  toastTimer = setTimeout(() => (el.hidden = true), ms);
 }
 
 function buildKeypad(container, onDigit) {
@@ -1152,7 +1156,10 @@ async function initAudio() {
   const gain = ctx.createGain(); // Hörlautstärke des Gesprächs
   gain.gain.value = typeof audioCfg.volume === 'number' ? audioCfg.volume : 1;
   node.connect(gain).connect(ctx.destination);
-  node.port.onmessage = (e) => window.phone.sendAudio(new Int16Array(e.data));
+  node.port.onmessage = (e) => {
+    micChunkAt = performance.now();
+    window.phone.sendAudio(new Int16Array(e.data));
+  };
   audio = { ctx, node, gain, ringCtx: new AudioContext() };
   await applySinks();
   $('audioGate').hidden = ctx.state === 'running';
@@ -1193,9 +1200,17 @@ async function applySinks() {
   }
 }
 
+function audioLog(text) {
+  try {
+    window.phone.logAudio(text);
+  } catch {}
+}
+
 async function startMic() {
   if (mic || !audio) return;
   mic = 'pending';
+  const gen = ++micGen;
+  const t0 = performance.now();
   try {
     audio.node.port.postMessage({ type: 'config', rate: callRate }); // Mikrofon in der Codec-Rate aufnehmen
     const id = deviceId('audioinput', activeMic());
@@ -1208,26 +1223,77 @@ async function startMic() {
         channelCount: 1,
       },
     });
-    if (mic !== 'pending') {
+    audioLog(`Mikrofon geöffnet nach ${Math.round(performance.now() - t0)} ms${gen === micGen ? '' : ' (nicht mehr gebraucht)'}`);
+    if (gen !== micGen || mic !== 'pending') {
       stream.getTracks().forEach((t) => t.stop());
       return;
     }
-    for (const track of stream.getAudioTracks()) track.enabled = !muted;
+    for (const track of stream.getAudioTracks()) track.enabled = micLive && !muted;
     const source = audio.ctx.createMediaStreamSource(stream);
     source.connect(audio.node);
     mic = { stream, source };
   } catch (err) {
+    audioLog(`Mikrofon ließ sich nicht öffnen (${Math.round(performance.now() - t0)} ms): ${err.message}`);
+    if (gen !== micGen) return;
     mic = null;
     toast(`Mikrofon: ${err.message}`, true);
   }
 }
 
+// Spur nur im Gespräch und nicht stumm freigeben (offen ist sie schon beim Klingeln/Wählen).
+function applyMicTrack() {
+  if (mic && mic !== 'pending') {
+    for (const track of mic.stream.getAudioTracks()) track.enabled = micLive && !muted;
+  }
+}
+
+// Liefert das Mikrofon im Gespräch 3 s lang nichts (auch stumm kommen Blöcke), neu öffnen; hilft das
+// nicht, deutlich darauf hinweisen und alle 10 s still weiter versuchen. So merkt man es selbst, nicht
+// erst die Gegenstelle.
+function watchMic(active) {
+  if (!active) {
+    clearInterval(micWatch);
+    micWatch = null;
+    return;
+  }
+  if (micWatch) return;
+  let since = performance.now();
+  let retried = false;
+  let warned = false;
+  const reopen = (text) => {
+    since = performance.now();
+    audioLog(text);
+    stopMic();
+    startMic();
+  };
+  micWatch = setInterval(() => {
+    const now = performance.now();
+    if (now - micChunkAt < 3000) {
+      if (retried) audioLog('Mikrofon liefert wieder Ton');
+      retried = warned = false;
+      since = now;
+      return;
+    }
+    const waited = now - since; // seit Gesprächsbeginn bzw. letztem Neuöffnen
+    if (waited < 3000) return;
+    if (!retried) {
+      retried = true;
+      toast('Mikrofon liefert keinen Ton – starte es neu …', true);
+      reopen(`Mikrofon liefert seit ${Math.round(waited / 1000)} s nichts (${mic === 'pending' ? 'Öffnen hängt' : mic ? 'offen' : 'zu'}) – öffne es neu`);
+    } else if (!warned) {
+      warned = true;
+      audioLog('Mikrofon liefert auch nach dem Neustart nichts');
+      toast('Mikrofon liefert keinen Ton. Bitte Mikrofon bzw. Headset prüfen oder mrphone neu starten.', true, 10000);
+    } else if (waited >= 10000) {
+      reopen('Mikrofon liefert weiter nichts – neuer Versuch');
+    }
+  }, 1000);
+}
+
 // Stumm = Mikrofonspur deaktivieren; die Gegenstelle bekommt Stille, das Gespräch läuft weiter.
 function setMuted(value) {
   muted = value;
-  if (mic && mic !== 'pending') {
-    for (const track of mic.stream.getAudioTracks()) track.enabled = !muted;
-  }
+  applyMicTrack();
   const button = $('muteBtn');
   button.classList.toggle('active', muted);
   button.setAttribute('aria-pressed', String(muted));
@@ -1242,6 +1308,7 @@ function stopMic() {
     mic.stream.getTracks().forEach((t) => t.stop());
   }
   mic = null;
+  micGen++;
 }
 
 // Töne: Klingelton (eingehend) auf dem Klingel-Gerät, Freizeichen (ausgehend) im Headset.
@@ -1423,8 +1490,16 @@ function updateAudio() {
   const media = consult
     ? consult.state === 'active'
     : call && !call.held && (call.state === 'active' || (call.state === 'ringing' && call.earlyMedia));
-  if (media) startMic();
+  // Mikrofon schon beim Klingeln bzw. Wählen öffnen (das Öffnen kann dauern), freigegeben wird es erst
+  // im Gespräch – so ist es bereit, wenn die Verbindung steht.
+  const soon = consult
+    ? ['calling', 'ringing'].includes(consult.state)
+    : call && !call.held && ['incoming', 'calling', 'ringing'].includes(call.state);
+  if (media || soon) startMic();
   else stopMic();
+  micLive = !!media;
+  applyMicTrack();
+  watchMic(!!media);
 
   if (call && call.state === 'incoming') playTone('ring');
   else if (consult && consult.state === 'ringing' && !consult.earlyMedia) playTone('ringback');

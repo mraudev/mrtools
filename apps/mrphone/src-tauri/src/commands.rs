@@ -585,12 +585,17 @@ pub fn reset_ringtone(state: State<'_, AppState>) {
     state.persist(&cfg);
 }
 
+// Version aus package.json (über tauri.conf.json) – Cargo.toml zieht beim Release nicht mit.
+pub fn version(app: &AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
 #[tauri::command]
-pub fn get_version(state: State<'_, AppState>) -> String {
+pub fn get_version(app: AppHandle, state: State<'_, AppState>) -> String {
     if state.test_copy {
-        format!("{} (Tauri-Test)", env!("CARGO_PKG_VERSION"))
+        format!("{} (Tauri-Test)", version(&app))
     } else {
-        env!("CARGO_PKG_VERSION").to_string()
+        version(&app)
     }
 }
 
@@ -602,6 +607,13 @@ pub fn open_log(state: State<'_, AppState>) {
     let _ = std::process::Command::new("explorer")
         .raw_arg(format!("/select,\"{}\"", file.display()))
         .spawn();
+}
+
+// Mikrofon der Oberfläche: Dauer beim Öffnen, Aussetzer – damit Probleme im Gespräch nachvollziehbar sind.
+#[tauri::command]
+pub fn log_audio(text: String) {
+    let text: String = text.chars().take(300).collect();
+    crate::logger::info(&format!("[Audio] {text}"));
 }
 
 // Fehler der Headset-Anbindung (WebHID in der Oberfläche) ins Protokoll.
@@ -802,7 +814,7 @@ pub async fn export_backup(
         });
         json!({
             "app": "mrphone",
-            "version": env!("CARGO_PKG_VERSION"),
+            "version": version(&app),
             "createdAt": created,
             "config": settings,
             "contacts": state.contacts.lock().unwrap().entries,
