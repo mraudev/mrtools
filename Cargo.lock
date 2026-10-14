@@ -2588,6 +2588,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mrremotemanager"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "tauri-plugin-updater",
+ "tauri-plugin-window-state",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "mrstart"
 version = "1.7.0"
 dependencies = [
