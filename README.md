@@ -12,6 +12,7 @@ und reka-ui, Aufbau und Aussehen wie [mrstart](apps/mrstart).
 | [mrports](apps/mrports)            | Zeigt, welcher Prozess welchen Port belegt | 1470    |
 | [mrhome](apps/mrhome)              | Licht und Heizung steuern (Hue, Govee, tado°) | 1480 |
 | [mrtextedit](apps/mrtextedit)      | WYSIWYG-Texteditor, auch zum Einbinden (Web, VCL) | 1490 |
+| [mrremotemanager](apps/mrremotemanager) | Remote-Verbindungen (RDP, SSH, Web) speichern und öffnen | 1500 |
 | [mrstart](apps/mrstart)            | Desktop-Launcher für Entwicklungsprojekte | 1420     |
 | [mrphone](apps/mrphone)            | SIP-Softphone (Nachfolger der Electron-Version) | –    |
 | [mrphone-linux](apps/mrphone-linux) | mrphone für Linux (Electron, AppImage/.deb) | –     |
