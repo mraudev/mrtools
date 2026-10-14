@@ -46,9 +46,11 @@ let state = { accounts: [], call: null }; // accounts: Anmeldestatus je Konto (i
 let audio = null; // { ctx, node, ringCtx }
 let mic = null; // null | 'pending' | { stream, source }
 let micGen = 0; // je Öffnen neu – ein spät fertiges, abgelöstes Öffnen wird verworfen
-let micLive = false; // Mikrofon freigegeben (im Gespräch); beim Klingeln/Wählen schon offen, aber stumm
+let micLive = false; // Mikrofon freigegeben (im Gespräch)
 let micChunkAt = 0; // letzter Block vom Mikrofon (performance.now())
+let micSoundAt = 0; // letzter Block, der nicht nur aus Nullen bestand
 let micWatch = null; // Überwachung im Gespräch (setInterval)
+let micWatchStart = 0; // Beginn der Überwachung (Gesprächsbeginn)
 let muted = false;
 let audioCfg = { microphone: '', speaker: '', ringer: '' }; // Gerätenamen aus config.json
 let devices = [];
@@ -1157,8 +1159,10 @@ async function initAudio() {
   gain.gain.value = typeof audioCfg.volume === 'number' ? audioCfg.volume : 1;
   node.connect(gain).connect(ctx.destination);
   node.port.onmessage = (e) => {
+    const pcm = new Int16Array(e.data);
     micChunkAt = performance.now();
-    window.phone.sendAudio(new Int16Array(e.data));
+    if (pcm.some((v) => v !== 0)) micSoundAt = micChunkAt;
+    window.phone.sendAudio(pcm);
   };
   audio = { ctx, node, gain, ringCtx: new AudioContext() };
   await applySinks();
@@ -1257,9 +1261,11 @@ function watchMic(active) {
     return;
   }
   if (micWatch) return;
-  let since = performance.now();
+  micWatchStart = performance.now();
+  let since = micWatchStart;
   let retried = false;
   let warned = false;
+  let silent = false;
   const reopen = (text) => {
     since = performance.now();
     audioLog(text);
@@ -1272,6 +1278,11 @@ function watchMic(active) {
       if (retried) audioLog('Mikrofon liefert wieder Ton');
       retried = warned = false;
       since = now;
+      // Blöcke kommen, aber seit 5 s nur Nullen, obwohl nicht stumm: nur ins Protokoll (Fehlersuche)
+      const zeros = !muted && now - Math.max(micSoundAt, micWatchStart) > 5000;
+      if (zeros && !silent) audioLog('Mikrofon liefert seit 5 s nur Nullen (am Headset stumm oder vom Gerät nicht freigegeben?)');
+      else if (!zeros && silent) audioLog('Mikrofon liefert wieder Ton (nicht mehr nur Nullen)');
+      silent = zeros;
       return;
     }
     const waited = now - since; // seit Gesprächsbeginn bzw. letztem Neuöffnen
@@ -1293,6 +1304,7 @@ function watchMic(active) {
 // Stumm = Mikrofonspur deaktivieren; die Gegenstelle bekommt Stille, das Gespräch läuft weiter.
 function setMuted(value) {
   muted = value;
+  if (!muted) micSoundAt = performance.now(); // Ton braucht nach dem Freigeben einen Moment
   applyMicTrack();
   const button = $('muteBtn');
   button.classList.toggle('active', muted);
@@ -1490,14 +1502,11 @@ function updateAudio() {
   const media = consult
     ? consult.state === 'active'
     : call && !call.held && (call.state === 'active' || (call.state === 'ringing' && call.earlyMedia));
-  // Mikrofon schon beim Klingeln bzw. Wählen öffnen (das Öffnen kann dauern), freigegeben wird es erst
-  // im Gespräch – so ist es bereit, wenn die Verbindung steht.
-  const soon = consult
-    ? ['calling', 'ringing'].includes(consult.state)
-    : call && !call.held && ['incoming', 'calling', 'ringing'].includes(call.state);
-  if (media || soon) startMic();
-  else stopMic();
+  // Erst im Gespräch öffnen: Jabra-Dongles mit Softphone-Integration (Link 390) geben das Mikrofon nur frei,
+  // wenn das Headset schon „im Gespräch“ ist – ein beim Klingeln geöffnetes Mikrofon blieb dort stumm (2.1.2).
   micLive = !!media;
+  if (media) startMic();
+  else stopMic();
   applyMicTrack();
   watchMic(!!media);
 
