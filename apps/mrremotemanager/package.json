@@ -1,7 +1,7 @@
 {
   "name": "mrremotemanager",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Remote-Verbindungen (Remotedesktop, SSH, VNC, Web, …) speichern und öffnen",
   "author": "Michael Rau <dev@mraudev.com>",
   "type": "module",
