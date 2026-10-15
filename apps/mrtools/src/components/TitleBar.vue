@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
-import { RefreshCw, Search, X } from "@lucide/vue";
+import { LayoutList, RefreshCw, Search, X } from "@lucide/vue";
 import logo from "@/assets/logo.svg";
 import Tip from "@mrtools/ui/components/Tip";
 import WindowControls from "@mrtools/ui/components/WindowControls";
@@ -64,6 +64,17 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
     <div class="min-w-6 flex-1" data-tauri-drag-region />
 
     <div class="flex items-center gap-1 pr-2">
+      <Tip :text="state.grouped ? 'Nicht mehr nach Kategorien gruppieren' : 'Nach Kategorien gruppieren'" side="bottom">
+        <button
+          class="icon-btn"
+          :class="state.grouped && 'bg-accent/15 !text-accent-text'"
+          aria-label="Nach Kategorien gruppieren"
+          :aria-pressed="state.grouped"
+          @click="state.grouped = !state.grouped"
+        >
+          <LayoutList />
+        </button>
+      </Tip>
       <Tip text="Aktualisieren (F5)" side="bottom">
         <button class="icon-btn" aria-label="Aktualisieren" :disabled="state.releasesLoading" @click="refresh">
           <RefreshCw :class="state.releasesLoading && 'animate-spin'" />

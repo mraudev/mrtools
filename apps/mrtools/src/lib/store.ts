@@ -1,5 +1,6 @@
-import { computed, reactive } from "vue";
+import { computed, reactive, watch } from "vue";
 import { api } from "./api";
+import { groupApps, sortApps } from "./apps";
 import type { App, Release } from "./types";
 
 export const state = reactive({
@@ -14,13 +15,37 @@ export const state = reactive({
   uninstalling: new Set<string>(),
   query: "",
   loaded: false,
+  /** Show the apps grouped by category (trial). */
+  grouped: loadGrouped(),
 });
 
+function loadGrouped(): boolean {
+  try {
+    return localStorage.getItem("grouped") === "1";
+  } catch {
+    return false;
+  }
+}
+
+watch(
+  () => state.grouped,
+  (grouped) => {
+    try {
+      localStorage.setItem("grouped", grouped ? "1" : "0");
+    } catch {
+      // Not persisted – still applies for this session.
+    }
+  },
+);
+
+/** Filtered by the search; apps with an update first, then installed ones, then the rest. */
 export const visibleApps = computed(() => {
   const q = state.query.trim().toLowerCase();
-  if (!q) return state.apps;
-  return state.apps.filter((a) => [a.name, a.description ?? ""].some((s) => s.toLowerCase().includes(q)));
+  const apps = q ? state.apps.filter((a) => [a.name, a.description ?? ""].some((s) => s.toLowerCase().includes(q))) : state.apps;
+  return sortApps(apps, state.releases);
 });
+
+export const categories = computed(() => groupApps(visibleApps.value, state.releases));
 
 /** Re-reads which apps are installed (e.g. after an installer ran). */
 export async function loadInstalled() {
