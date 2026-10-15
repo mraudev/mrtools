@@ -3,9 +3,11 @@ import { onMounted } from "vue";
 import { TooltipProvider } from "reka-ui";
 import { LoaderCircle } from "@lucide/vue";
 import ConfirmDelete from "./components/ConfirmDelete.vue";
+import ConfirmEnd from "./components/ConfirmEnd.vue";
 import ConnectionList from "./components/ConnectionList.vue";
 import DetailPanel from "./components/DetailPanel.vue";
 import EditDialog from "./components/EditDialog.vue";
+import ImportDialog from "./components/ImportDialog.vue";
 import StatusBar from "./components/StatusBar.vue";
 import TitleBar from "./components/TitleBar.vue";
 import Toaster from "@mrtools/ui/components/Toaster";
@@ -42,6 +44,8 @@ onMounted(() => {
     </div>
     <EditDialog />
     <ConfirmDelete />
+    <ConfirmEnd />
+    <ImportDialog />
     <Toaster />
   </TooltipProvider>
 </template>

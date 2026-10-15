@@ -11,6 +11,8 @@
     "core:window:allow-close",
     "core:window:allow-destroy",
     "core:window:allow-start-dragging",
-    "updater:default"
+    "updater:default",
+    "dialog:allow-open",
+    "dialog:allow-save"
   ]
 }

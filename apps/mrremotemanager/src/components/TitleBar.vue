@@ -1,16 +1,24 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
-import { Plus, Search, X } from "@lucide/vue";
+import {
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuRoot,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "reka-ui";
+import { Download, EllipsisVertical, FileDown, FileUp, Plus, Search, X } from "@lucide/vue";
 import logo from "@/assets/logo.svg";
 import Tip from "@mrtools/ui/components/Tip";
 import WindowControls from "@mrtools/ui/components/WindowControls";
-import { create } from "@/lib/actions";
+import { create, exportBackup, importBackup } from "@/lib/actions";
 import { state } from "@/lib/store";
 
 const search = ref<HTMLInputElement>();
 
 function onKeydown(event: KeyboardEvent) {
-  if (state.draft || state.confirmDelete) return;
+  if (state.draft || state.confirmDelete || state.confirmEnd || state.importing) return;
   if (event.ctrlKey && event.key.toLowerCase() === "f") {
     event.preventDefault();
     search.value?.focus();
@@ -68,6 +76,24 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
     </div>
 
     <div class="min-w-6 flex-1" data-tauri-drag-region />
+
+    <div class="flex items-center pr-2">
+      <DropdownMenuRoot>
+        <DropdownMenuTrigger as-child>
+          <button class="icon-btn" aria-label="Weitere Aktionen"><EllipsisVertical /></button>
+        </DropdownMenuTrigger>
+        <DropdownMenuPortal>
+          <DropdownMenuContent align="end" :side-offset="6" class="menu anim-fade w-72">
+            <DropdownMenuItem class="menu-item" @select="state.importing = true">
+              <Download />Von diesem PC importieren …
+            </DropdownMenuItem>
+            <DropdownMenuSeparator class="menu-separator" />
+            <DropdownMenuItem class="menu-item" @select="exportBackup"><FileDown />Sicherung exportieren …</DropdownMenuItem>
+            <DropdownMenuItem class="menu-item" @select="importBackup"><FileUp />Sicherung importieren …</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenuPortal>
+      </DropdownMenuRoot>
+    </div>
 
     <WindowControls />
   </header>

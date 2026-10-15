@@ -2,7 +2,7 @@
   "name": "mrremotemanager",
   "private": true,
   "version": "1.0.0",
-  "description": "Remote-Verbindungen (Remotedesktop, SSH, Web) speichern und öffnen",
+  "description": "Remote-Verbindungen (Remotedesktop, SSH, VNC, Web, …) speichern und öffnen",
   "author": "Michael Rau <dev@mraudev.com>",
   "type": "module",
   "scripts": {
@@ -15,6 +15,7 @@
     "@lucide/vue": "^1.51.0",
     "@mrtools/ui": "*",
     "@tauri-apps/api": "^2.12.1",
+    "@tauri-apps/plugin-dialog": "^2.8.1",
     "@tauri-apps/plugin-updater": "^2.13.1",
     "reka-ui": "^2.10.5",
     "vue": "^3.5.43"

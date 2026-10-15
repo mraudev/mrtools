@@ -1,6 +1,7 @@
 //! Remote connections open right now: Remotedesktop (`mstsc.exe`) and `ssh.exe` with the host
-//! they were started with, plus any other program connected to port 3389 or 22 (PuTTY, WinSCP, …)
-//! with the remote IP address.
+//! they were started with, plus any other program connected to a well-known remote port
+//! (RDP 3389, SSH 22, Telnet 23, VNC 5900–5909 – PuTTY, WinSCP, VNC viewers, …) with the remote
+//! IP address. Open sessions can be brought to the front or ended.
 
 use crate::launch::Kind;
 use crate::win::{self, Tcp};
@@ -110,26 +111,59 @@ fn detect(
                 }
                 out.push(a);
             }
-        } else if matches!(t.remote_port, 3389 | 22) && !matches!(t.local_port, 3389 | 22) {
-            // Outgoing only: a remote session *into* this PC has the local port 3389/22.
+        } else if let (Some(kind), None) = (kind_of_port(t.remote_port), kind_of_port(t.local_port)) {
+            // Outgoing only: a remote session *into* this PC has the well-known port locally.
             if done_connections.insert((t.pid, &t.remote_address, t.remote_port)) {
-                out.push(base(if t.remote_port == 22 { Kind::Ssh } else { Kind::Rdp }, t));
+                out.push(base(kind, t));
             }
         }
     }
     out
 }
 
+/// The kind of a well-known remote port.
+fn kind_of_port(port: u16) -> Option<Kind> {
+    match port {
+        3389 => Some(Kind::Rdp),
+        22 => Some(Kind::Ssh),
+        23 => Some(Kind::Telnet),
+        5900..=5909 => Some(Kind::Vnc),
+        _ => None,
+    }
+}
+
+/// The process must own an open connection, so only remote clients can be targeted – not any pid.
+fn check_session(pid: u32) -> Result<(), String> {
+    if pid <= 4 || pid == std::process::id() || !win::established().iter().any(|t| t.pid == pid) {
+        return Err("Diese Sitzung ist nicht mehr offen.".into());
+    }
+    Ok(())
+}
+
+/// Brings the window of an open session to the front.
+#[tauri::command]
+pub fn focus_session(pid: u32) -> Result<(), String> {
+    check_session(pid)?;
+    win::focus(pid)
+}
+
+/// Ends an open session by ending its program.
+#[tauri::command]
+pub fn end_session(pid: u32) -> Result<(), String> {
+    check_session(pid)?;
+    win::terminate(pid)
+}
+
 #[derive(Debug, PartialEq, Default)]
-struct Target {
-    host: String,
-    port: Option<u16>,
-    user: String,
-    key_file: String,
+pub struct Target {
+    pub host: String,
+    pub port: Option<u16>,
+    pub user: String,
+    pub key_file: String,
 }
 
 /// "host", "host:port", "[v6]:port" or a bare IPv6 address.
-fn split_host_port(text: &str) -> (String, Option<u16>) {
+pub fn split_host_port(text: &str) -> (String, Option<u16>) {
     let text = text.trim();
     if let Some(rest) = text.strip_prefix('[') {
         if let Some((host, after)) = rest.split_once(']') {
@@ -157,7 +191,7 @@ fn mstsc_target(args: &[String]) -> Option<Target> {
     rdp_file_target(&std::fs::read(file).ok()?)
 }
 
-fn rdp_file_target(bytes: &[u8]) -> Option<Target> {
+pub fn rdp_file_target(bytes: &[u8]) -> Option<Target> {
     let text = match bytes {
         [0xFF, 0xFE, rest @ ..] => {
             String::from_utf16_lossy(&rest.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect::<Vec<_>>())
