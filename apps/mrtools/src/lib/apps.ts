@@ -12,12 +12,13 @@ const CATEGORIES: Record<string, string> = {
   mrstart: "Entwicklung & Werkzeuge",
   mrtextedit: "Entwicklung & Werkzeuge",
   mrhome: "Zuhause",
+  mrfakt: "Büro",
 };
 
 const OTHER = "Sonstige";
 
 /** Order of the categories; unknown ones follow alphabetically, "Sonstige" last. */
-const ORDER = ["System", "Netzwerk & Kommunikation", "Entwicklung & Werkzeuge", "Zuhause"];
+const ORDER = ["Büro", "System", "Netzwerk & Kommunikation", "Entwicklung & Werkzeuge", "Zuhause"];
 
 export function categoryOf(folder: string): string {
   return CATEGORIES[folder] ?? OTHER;

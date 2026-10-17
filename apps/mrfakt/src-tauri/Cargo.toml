@@ -1,0 +1,34 @@
+[package]
+name = "mrfakt"
+version = "0.1.0"
+description = "Angebote, Rechnungen, Aufmaß und Kunden für den Handwerksbetrieb"
+authors = ["Michael Rau <dev@mraudev.com>"]
+edition = "2021"
+
+[lib]
+# The `_lib` suffix avoids a name clash between the lib and the bin on Windows,
+# see https://github.com/rust-lang/cargo/issues/8519
+name = "mrfakt_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-window-state = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.40", features = ["bundled", "backup"] }
+rust_decimal = { version = "1", features = ["serde-float", "maths"] }
+encoding_rs = "0.8"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+typst = "0.15"
+typst-pdf = "0.15"
+typst-layout = "0.15"
+typst-kit = { version = "0.15", default-features = false, features = ["scan-fonts", "embedded-fonts"] }
+quick-xml = "0.42"
+lopdf = "0.45"

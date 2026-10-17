@@ -13,6 +13,7 @@ und reka-ui, Aufbau und Aussehen wie [mrstart](apps/mrstart).
 | [mrhome](apps/mrhome)              | Licht und Heizung steuern (Hue, Govee, tado°) | 1480 |
 | [mrtextedit](apps/mrtextedit)      | WYSIWYG-Texteditor, auch zum Einbinden (Web, VCL) | 1490 |
 | [mrremotemanager](apps/mrremotemanager) | Remote-Verbindungen (RDP, SSH, VNC, Web, …) speichern und öffnen | 1500 |
+| [mrfakt](apps/mrfakt)              | Angebote, Rechnungen, Aufmaß und Kunden für den Handwerksbetrieb (Nachfolger von GHFakt) | 1510 |
 | [mrstart](apps/mrstart)            | Desktop-Launcher für Entwicklungsprojekte | 1420     |
 | [mrphone](apps/mrphone)            | SIP-Softphone (Nachfolger der Electron-Version) | –    |
 | [mrphone-linux](apps/mrphone-linux) | mrphone für Linux (Electron, AppImage/.deb) | –     |
