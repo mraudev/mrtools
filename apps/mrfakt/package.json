@@ -1,7 +1,7 @@
 {
   "name": "mrfakt",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Angebote, Rechnungen, Aufmaß und Kunden für den Handwerksbetrieb (Nachfolger von GHFakt)",
   "author": "Michael Rau <dev@mraudev.com>",
   "type": "module",
