@@ -350,7 +350,10 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn knows_the_program_for_text_files() {
-        assert!(imp::open_with(Path::new("C:\\x.txt")).is_some());
+        // Ob .txt eine Zuordnung hat, hängt vom Rechner ab (der CI-Runner hat keine).
+        if let Some(name) = imp::open_with(Path::new("C:\\x.txt")) {
+            assert!(!name.is_empty());
+        }
         assert_eq!(imp::open_with(Path::new("C:\\no-extension")), None);
     }
 }

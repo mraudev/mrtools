@@ -65,6 +65,12 @@ jobs:
       - name: Rust-Tests mrtextedit
         run: cargo test --locked -p mrtextedit
 
+      - name: Rust-Tests mrremotemanager
+        run: cargo test --locked -p mrremotemanager
+
+      - name: Rust-Tests mrfakt
+        run: cargo test --locked -p mrfakt
+
       - name: Rust-Tests mrstart
         run: cargo test --locked -p mrstart
 
