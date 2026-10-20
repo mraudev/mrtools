@@ -152,6 +152,10 @@ pub fn run() {
             let window = builder.build()?;
             allow_microphone_only(&window)?;
             desktop::setup(app.handle(), &window, &dir)?;
+            let hotkey = app.state::<AppState>().cfg.lock().unwrap()["hotkeyShow"] == true;
+            if hotkey {
+                let _ = desktop::set_hotkey(app.handle(), true);
+            }
             updater::start(app.handle());
             commands::apply_theme(app.handle(), &theme);
             Ok(())

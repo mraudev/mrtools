@@ -29,7 +29,8 @@ src-tauri/src/
                    Electron-Version (testdata/electron-backup.mrphone stammt von deren backup.js)
   imports.rs       Kontakte: CSV-Import (Outlook-Exporte, UTF-8/ANSI), CSV-Export, klassisches Outlook per COM
   desktop.rs       Windows: Tray, Meldungen (Anruf mit Annehmen/Ablehnen, verpasster Anruf), Fenster
-                   hervorholen, Abmelden bei gesperrtem PC, Fensterknöpfe der eigenen Titelleiste
+                   hervorholen, Abmelden bei gesperrtem PC, Fensterknöpfe der eigenen Titelleiste,
+                   Tastenkürzel Strg+F9 (Option) holt mrphone in den Vordergrund
   updater.rs       automatische Updates (signiert, Kanal mrphone-latest) – nur in der installierten App
   migration.rs     erkennt die installierte Electron-Version (Registry)
   logger.rs        Protokoll sipphone.log im Datenordner

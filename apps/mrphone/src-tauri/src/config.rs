@@ -25,6 +25,7 @@ fn defaults() -> Value {
         "design": "mr",
         "ringOnHeadset": false,
         "headsetAnswer": false,
+        "hotkeyShow": false,
         "ringtonePreset": "standard",
         "favorites": []
     })

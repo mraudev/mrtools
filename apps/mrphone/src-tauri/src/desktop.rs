@@ -407,6 +407,8 @@ fn screen_lock_changed(app: &AppHandle, locked: bool) {
 }
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
+const WM_HOTKEY: u32 = 0x0312;
+const HOTKEY_ID: i32 = 0x6d72; // „mr“
 const WM_WTSSESSION_CHANGE: u32 = 0x02B1;
 const WTS_SESSION_LOCK: usize = 7;
 const WTS_SESSION_UNLOCK: usize = 8;
@@ -419,6 +421,12 @@ unsafe extern "system" fn subclass_proc(
     _id: usize,
     _data: usize,
 ) -> windows::Win32::Foundation::LRESULT {
+    if msg == WM_HOTKEY && wparam.0 == HOTKEY_ID as usize {
+        if let Some(app) = APP.get() {
+            show_window(app);
+        }
+        return windows::Win32::Foundation::LRESULT(0);
+    }
     if msg == WM_WTSSESSION_CHANGE && matches!(wparam.0, WTS_SESSION_LOCK | WTS_SESSION_UNLOCK) {
         if let Some(app) = APP.get() {
             screen_lock_changed(app, wparam.0 == WTS_SESSION_LOCK);
@@ -440,6 +448,42 @@ fn watch_screen_lock(app: &AppHandle, win: &WebviewWindow) {
         let _ = SetWindowSubclass(hwnd, Some(subclass_proc), 1, 0);
         if let Err(e) = WTSRegisterSessionNotification(hwnd, NOTIFY_FOR_THIS_SESSION) {
             crate::logger::warn(&format!("Bildschirmsperre wird nicht erkannt: {e}"));
+        }
+    }
+}
+
+// --- Tastenkürzel Strg+F9 (Option, Standard aus): holt mrphone in den Vordergrund, auch aus dem Tray ---
+
+// Muss im Thread des Fensters laufen (Einrichtung und synchrone Befehle laufen dort).
+pub fn set_hotkey(app: &AppHandle, on: bool) -> Result<(), String> {
+    use windows::Win32::{
+        Foundation::HWND,
+        UI::Input::KeyboardAndMouse::{
+            RegisterHotKey, UnregisterHotKey, MOD_CONTROL, MOD_NOREPEAT, VK_F9,
+        },
+    };
+    let win = app.get_webview_window("main").ok_or("Kein Fenster")?;
+    let hwnd = HWND(win.hwnd().map_err(|e| e.to_string())?.0);
+    unsafe {
+        let _ = UnregisterHotKey(Some(hwnd), HOTKEY_ID);
+        if !on {
+            crate::logger::info("Strg+F9 aus");
+            return Ok(());
+        }
+        match RegisterHotKey(
+            Some(hwnd),
+            HOTKEY_ID,
+            MOD_CONTROL | MOD_NOREPEAT,
+            VK_F9.0 as u32,
+        ) {
+            Ok(()) => {
+                crate::logger::info("Strg+F9 holt mrphone in den Vordergrund");
+                Ok(())
+            }
+            Err(e) => {
+                crate::logger::warn(&format!("Strg+F9 nicht verfügbar: {e}"));
+                Err("Strg+F9 ist schon von einem anderen Programm belegt.".into())
+            }
         }
     }
 }

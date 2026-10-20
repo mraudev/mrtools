@@ -2092,6 +2092,13 @@ $('favCancel').onclick = () => $('favDialog').close();
 $('favDelete').onclick = deleteFavorite;
 $('lockUnregister').onchange = () => window.phone.setOptions({ lockUnregister: $('lockUnregister').checked });
 $('showOnCall').onchange = () => window.phone.setOptions({ showOnCall: $('showOnCall').checked });
+$('hotkeyShow').onchange = async () => {
+  const res = await window.phone.setOptions({ hotkeyShow: $('hotkeyShow').checked });
+  if (res && res.error) {
+    $('hotkeyShow').checked = false;
+    toast(res.error, true);
+  }
+};
 $('micProcessing').onchange = () => {
   micProcessing = $('micProcessing').checked;
   window.phone.setOptions({ micProcessing });
@@ -2188,6 +2195,7 @@ window.phone.onAudioFormat((fmt) => {
     const options = await window.phone.getOptions();
     $('lockUnregister').checked = options.lockUnregister;
     $('showOnCall').checked = options.showOnCall;
+    $('hotkeyShow').checked = !!options.hotkeyShow;
     micProcessing = options.micProcessing;
     $('micProcessing').checked = micProcessing;
     $('hdVoice').checked = options.hdVoice;
