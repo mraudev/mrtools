@@ -1190,17 +1190,32 @@ function activeSpeaker() {
   return speakerMode ? audioCfg.spkSpeaker : audioCfg.speaker;
 }
 
-async function applySinks() {
+// Ausgabegeräte zuordnen. Fehlt das eingestellte Gerät, nimmt Windows den Systemstandard – das steht dann
+// im Protokoll und als Hinweis, statt dass der Ton still woanders landet. force (nach Gerätewechsel): neu
+// setzen, auch wenn sich die Auswahl nicht geändert hat – war das Gerät kurz weg, hält der Browser die alte
+// Auswahl sonst für gültig und der Ton bliebe auf dem Ersatzgerät.
+const sinkState = new Map(); // AudioContext -> { label, missing }
+async function applySinks({ force = false } = {}) {
   if (!audio) return;
-  const sinks = [[audio.ctx, activeSpeaker()], [audio.ringCtx, audioCfg.ringer]];
-  for (const [ctx, name] of sinks) {
-    const id = deviceId('audiooutput', name);
+  const sinks = [['Gespräch', audio.ctx, activeSpeaker()], ['Klingeln', audio.ringCtx, audioCfg.ringer]];
+  for (const [role, ctx, name] of sinks) {
     if (!ctx.setSinkId) continue;
+    const dev = findDevice('audiooutput', name);
+    const id = dev ? dev.deviceId : '';
+    const missing = !!name && !dev;
+    const label = dev ? dev.label : missing ? `Systemstandard („${name}“ nicht gefunden)` : 'Systemstandard';
+    const prev = sinkState.get(ctx);
     try {
-      await ctx.setSinkId(id || '');
+      if (force && ctx.sinkId === id && id) await ctx.setSinkId('');
+      if (ctx.sinkId !== id) await ctx.setSinkId(id);
     } catch (err) {
-      console.warn('setSinkId', err);
+      audioLog(`${role}: „${label}“ ließ sich nicht einstellen: ${err.message}`);
     }
+    if (!prev || prev.label !== label) audioLog(`${role}: ${label}`);
+    if (missing && !(prev && prev.missing)) {
+      toast(`${role === 'Gespräch' ? 'Gesprächsgerät' : 'Klingelgerät'} „${name}“ nicht gefunden – nutze Systemstandard`, true, 6000);
+    }
+    sinkState.set(ctx, { label, missing });
   }
 }
 
@@ -1217,7 +1232,8 @@ async function startMic() {
   const t0 = performance.now();
   try {
     audio.node.port.postMessage({ type: 'config', rate: callRate }); // Mikrofon in der Codec-Rate aufnehmen
-    const id = deviceId('audioinput', activeMic());
+    const wanted = activeMic();
+    const id = deviceId('audioinput', wanted);
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: id ? { exact: id } : undefined,
@@ -1227,7 +1243,9 @@ async function startMic() {
         channelCount: 1,
       },
     });
-    audioLog(`Mikrofon geöffnet nach ${Math.round(performance.now() - t0)} ms${gen === micGen ? '' : ' (nicht mehr gebraucht)'}`);
+    const track = stream.getAudioTracks()[0];
+    const used = `${track ? track.label : '?'}${wanted && !id ? ` – „${wanted}“ nicht gefunden, Systemstandard` : ''}`;
+    audioLog(`Mikrofon geöffnet nach ${Math.round(performance.now() - t0)} ms: ${used}${gen === micGen ? '' : ' (nicht mehr gebraucht)'}`);
     if (gen !== micGen || mic !== 'pending') {
       stream.getTracks().forEach((t) => t.stop());
       return;
@@ -1744,11 +1762,28 @@ async function refreshDevices() {
   defaultOutputLabel = def ? def.label : '';
 }
 
-// Linphone-Namen haben keinen "(vid:pid)"-Zusatz, daher auch Treffer über den Namensanfang.
+// Windows nummeriert neu angemeldete Geräte ("Speakers (2- Jabra Link 390)" -> nach Umstecken oder
+// Firmware-Update "(3- …)"), Chromium hängt bei USB-Geräten "(vid:pid)" an – beides zählt beim Wiederfinden
+// nicht. Linphone-Namen haben keinen "(vid:pid)"-Zusatz, daher auch Treffer über den Namensanfang.
+function normalizeLabel(label) {
+  return String(label || '')
+    .replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/i, '')
+    .replace(/\(\d+-\s*/g, '(')
+    .trim()
+    .toLowerCase();
+}
+
 function findDevice(kind, name) {
   if (!name) return null;
   const list = devices.filter((d) => d.kind === kind);
-  return list.find((d) => d.label === name) || list.find((d) => d.label.startsWith(name)) || null;
+  const norm = normalizeLabel(name);
+  return (
+    list.find((d) => d.label === name) ||
+    list.find((d) => d.label.startsWith(name)) ||
+    list.find((d) => normalizeLabel(d.label) === norm) ||
+    list.find((d) => normalizeLabel(d.label).startsWith(norm)) ||
+    null
+  );
 }
 
 function deviceId(kind, name) {
@@ -2101,7 +2136,7 @@ $('settings').addEventListener('close', stopMeter);
 // Headset an-/abgesteckt: gespeicherte Auswahl neu zuordnen
 navigator.mediaDevices.addEventListener('devicechange', async () => {
   await refreshDevices();
-  applySinks();
+  applySinks({ force: true });
 });
 setInterval(updateCallStatus, 1000);
 
