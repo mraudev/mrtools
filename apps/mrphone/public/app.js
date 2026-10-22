@@ -1195,6 +1195,10 @@ function activeSpeaker() {
 // setzen, auch wenn sich die Auswahl nicht geändert hat – war das Gerät kurz weg, hält der Browser die alte
 // Auswahl sonst für gültig und der Ton bliebe auf dem Ersatzgerät.
 const sinkState = new Map(); // AudioContext -> { label, missing }
+const SINK_RETRY_MS = 5000;
+const SINK_RETRY_FOR_MS = 120000;
+let sinkRetry = null; // Nachsehen, solange ein eingestelltes Gerät fehlt
+let sinkRetryUntil = 0;
 async function applySinks({ force = false } = {}) {
   if (!audio) return;
   const sinks = [['Gespräch', audio.ctx, activeSpeaker()], ['Klingeln', audio.ringCtx, audioCfg.ringer]];
@@ -1217,6 +1221,21 @@ async function applySinks({ force = false } = {}) {
     }
     sinkState.set(ctx, { label, missing });
   }
+  // Fehlt ein eingestelltes Gerät, regelmäßig nachsehen – nach einem Neustart meldet Windows das Headset oft
+  // erst nach mrphone an, und auf die Gerätewechsel-Meldung des Browsers ist dann kein Verlass.
+  const anyMissing = [...sinkState.values()].some((v) => v.missing);
+  if (!anyMissing) {
+    sinkRetryUntil = 0;
+  } else if (!sinkRetry) {
+    if (!sinkRetryUntil) sinkRetryUntil = performance.now() + SINK_RETRY_FOR_MS;
+    if (performance.now() < sinkRetryUntil) {
+      sinkRetry = setTimeout(async () => {
+        sinkRetry = null;
+        await refreshDevices();
+        applySinks();
+      }, SINK_RETRY_MS);
+    }
+  }
 }
 
 function audioLog(text) {
@@ -1232,6 +1251,7 @@ async function startMic() {
   const t0 = performance.now();
   try {
     audio.node.port.postMessage({ type: 'config', rate: callRate }); // Mikrofon in der Codec-Rate aufnehmen
+    await refreshDevices().catch(() => {}); // Headset evtl. erst nach dem Start angemeldet
     const wanted = activeMic();
     const id = deviceId('audioinput', wanted);
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -2149,8 +2169,11 @@ setInterval(updateCallStatus, 1000);
 
 window.phone.onState((s) => {
   const wasTalking = !!state.call && state.call.state === 'active'; // nur verbundene Gespräche, nicht verpasste
+  const newCall = !state.call && !!s.call;
   state = s;
   render();
+  // Neues Gespräch: Geräteliste frisch lesen und zuordnen – spätestens jetzt das richtige Gerät
+  if (newCall) refreshDevices().then(() => applySinks()).catch(() => {});
   if (wasTalking && !s.call) playTone('hangup'); // hörbares Zeichen: Gespräch ist beendet
 });
 window.phone.onEnded((reason) => toast(reason));
