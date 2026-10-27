@@ -1164,9 +1164,53 @@ async function initAudio() {
     if (pcm.some((v) => v !== 0)) micSoundAt = micChunkAt;
     window.phone.sendAudio(pcm);
   };
-  audio = { ctx, node, gain, ringCtx: new AudioContext() };
+  const ringCtx = new AudioContext();
+  // Hält ein Audio-Baustein an oder meldet einen Fehler (z. B. weil Windows das Headset neu angemeldet oder
+  // Teams es umkonfiguriert hat): protokollieren, fortsetzen bzw. die Kette neu aufbauen.
+  for (const [role, c] of [['Gespräch', ctx], ['Klingeln', ringCtx]]) {
+    let down = false; // „running“ nur protokollieren, wenn der Baustein vorher angehalten war
+    c.addEventListener('statechange', () => {
+      if (!audio || (c !== audio.ctx && c !== audio.ringCtx) || c.state === 'closed') return;
+      if (c.state === 'running' && !down) return;
+      down = c.state !== 'running';
+      audioLog(`Audio ${role}: ${c.state}`);
+      if (down) c.resume().catch(() => {});
+    });
+    c.addEventListener('error', (e) => {
+      if (!audio || (c !== audio.ctx && c !== audio.ringCtx)) return;
+      audioLog(`Audio ${role} meldet Fehler: ${(e && (e.message || (e.error && e.error.message))) || 'unbekannt'}`);
+      restartAudio(`Fehler der Audio-Ausgabe (${role})`);
+    });
+  }
+  audio = { ctx, node, gain, ringCtx };
   await applySinks();
   $('audioGate').hidden = ctx.state === 'running';
+}
+
+// Audio-Kette neu aufbauen – wie ein Neustart von mrphone. Läuft der Audio-Baustein der WebView nicht mehr,
+// kommt weder etwas vom Mikrofon noch von der Gegenstelle durch; neu öffnen allein hilft dann nicht.
+let audioRestarting = false;
+async function restartAudio(reason) {
+  if (audioRestarting || !audio) return;
+  audioRestarting = true;
+  audioLog(`Audio wird neu aufgebaut: ${reason}`);
+  const old = audio;
+  stopMic();
+  stopTone();
+  sinkState.clear();
+  try {
+    await refreshDevices(); // nach einer Neuanmeldung des Headsets hat es oft eine neue Kennung
+    await initAudio();
+    audio.node.port.postMessage({ type: 'config', rate: callRate });
+    await loadRingtone();
+    for (const c of [old.ctx, old.ringCtx]) c.close().catch(() => {});
+    audioLog('Audio neu aufgebaut');
+  } catch (err) {
+    audio = old;
+    audioLog(`Audio-Neuaufbau fehlgeschlagen: ${err.message}`);
+  }
+  audioRestarting = false;
+  updateAudio(); // Mikrofon im Gespräch wieder öffnen, Töne wieder starten
 }
 
 async function unlockAudio() {
@@ -1209,17 +1253,19 @@ async function applySinks({ force = false } = {}) {
     const missing = !!name && !dev;
     const label = dev ? dev.label : missing ? `Systemstandard („${name}“ nicht gefunden)` : 'Systemstandard';
     const prev = sinkState.get(ctx);
+    let failed = false;
     try {
       if (force && ctx.sinkId === id && id) await ctx.setSinkId('');
       if (ctx.sinkId !== id) await ctx.setSinkId(id);
     } catch (err) {
+      failed = true; // z. B. Headset gerade neu angemeldet: wie fehlend behandeln, gleich nochmal versuchen
       audioLog(`${role}: „${label}“ ließ sich nicht einstellen: ${err.message}`);
     }
     if (!prev || prev.label !== label) audioLog(`${role}: ${label}`);
     if (missing && !(prev && prev.missing)) {
       toast(`${role === 'Gespräch' ? 'Gesprächsgerät' : 'Klingelgerät'} „${name}“ nicht gefunden – nutze Systemstandard`, true, 6000);
     }
-    sinkState.set(ctx, { label, missing });
+    sinkState.set(ctx, { label: failed ? `${label} (nicht eingestellt)` : label, missing: missing || failed });
   }
   // Fehlt ein eingestelltes Gerät, regelmäßig nachsehen – nach einem Neustart meldet Windows das Headset oft
   // erst nach mrphone an, und auf die Gerätewechsel-Meldung des Browsers ist dann kein Verlass.
@@ -1304,8 +1350,15 @@ function watchMic(active) {
   let retried = false;
   let warned = false;
   let silent = false;
+  // Hängt nur das Öffnen, das Mikrofon neu öffnen; ist es offen und trotzdem kommt nichts, steht der
+  // Audio-Baustein – dann die ganze Kette neu aufbauen.
   const reopen = (text) => {
     since = performance.now();
+    const stalled = (mic && mic !== 'pending') || (audio && audio.ctx.state !== 'running');
+    if (stalled) {
+      restartAudio(`${text} (Audio ${audio ? audio.ctx.state : '?'})`);
+      return;
+    }
     audioLog(text);
     stopMic();
     startMic();
@@ -1328,7 +1381,7 @@ function watchMic(active) {
     if (!retried) {
       retried = true;
       toast('Mikrofon liefert keinen Ton – starte es neu …', true);
-      reopen(`Mikrofon liefert seit ${Math.round(waited / 1000)} s nichts (${mic === 'pending' ? 'Öffnen hängt' : mic ? 'offen' : 'zu'}) – öffne es neu`);
+      reopen(`Mikrofon liefert seit ${Math.round(waited / 1000)} s nichts (${mic === 'pending' ? 'Öffnen hängt' : mic ? 'offen' : 'zu'})`);
     } else if (!warned) {
       warned = true;
       audioLog('Mikrofon liefert auch nach dem Neustart nichts');
