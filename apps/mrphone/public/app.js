@@ -49,6 +49,8 @@ let micGen = 0; // je Öffnen neu – ein spät fertiges, abgelöstes Öffnen wi
 let micLive = false; // Mikrofon freigegeben (im Gespräch)
 let micChunkAt = 0; // letzter Block vom Mikrofon (performance.now())
 let micSoundAt = 0; // letzter Block, der nicht nur aus Nullen bestand
+let renderAt = 0; // letztes Lebenszeichen des Audio-Bausteins (Wiedergabe läuft)
+let micInputs = 0; // Kanäle am Eingang des Audio-Bausteins (0 = vom Mikrofon kommt nichts an)
 let micWatch = null; // Überwachung im Gespräch (setInterval)
 let micWatchStart = 0; // Beginn der Überwachung (Gesprächsbeginn)
 let muted = false;
@@ -1159,6 +1161,12 @@ async function initAudio() {
   gain.gain.value = typeof audioCfg.volume === 'number' ? audioCfg.volume : 1;
   node.connect(gain).connect(ctx.destination);
   node.port.onmessage = (e) => {
+    if (e.data && e.data.type === 'beat') {
+      if (!audio || node !== audio.node) return; // alte Kette nach einem Neuaufbau
+      renderAt = performance.now();
+      micInputs = e.data.input;
+      return;
+    }
     const pcm = new Int16Array(e.data);
     micChunkAt = performance.now();
     if (pcm.some((v) => v !== 0)) micSoundAt = micChunkAt;
@@ -1316,7 +1324,13 @@ async function startMic() {
       stream.getTracks().forEach((t) => t.stop());
       return;
     }
-    for (const track of stream.getAudioTracks()) track.enabled = micLive && !muted;
+    for (const track of stream.getAudioTracks()) {
+      track.enabled = micLive && !muted;
+      // Meldet das Gerät keine Daten mehr (z. B. von Windows neu angemeldet), steht das hier im Protokoll
+      track.onmute = () => mic && mic.stream === stream && audioLog('Mikrofon: Gerät liefert keine Daten mehr (Spur stummgeschaltet)');
+      track.onunmute = () => mic && mic.stream === stream && audioLog('Mikrofon: Gerät liefert wieder Daten');
+      track.onended = () => mic && mic.stream === stream && audioLog('Mikrofon: Spur vom Gerät beendet');
+    }
     const source = audio.ctx.createMediaStreamSource(stream);
     source.connect(audio.node);
     mic = { stream, source };
@@ -1326,6 +1340,15 @@ async function startMic() {
     mic = null;
     toast(`Mikrofon: ${err.message}`, true);
   }
+}
+
+// Für das Protokoll, wenn vom Mikrofon nichts kommt: Steht die ganze Kette (keine Wiedergabe) oder nur
+// die Aufnahme (Eingang ohne Kanäle, Spur vom Gerät stummgeschaltet oder beendet)?
+function audioDiag() {
+  const render = performance.now() - renderAt < 2500 ? 'Wiedergabe läuft' : 'Wiedergabe steht';
+  const track = mic && mic !== 'pending' && mic.stream.getAudioTracks()[0];
+  const spur = track ? `Spur ${track.readyState === 'live' ? 'aktiv' : 'beendet'}${track.muted ? ', vom Gerät stummgeschaltet' : ''}` : 'keine Spur';
+  return `Audio ${audio ? audio.ctx.state : '?'}, ${render}, Eingang ${micInputs ? 'verbunden' : 'leer'}, ${spur}`;
 }
 
 // Spur nur im Gespräch und nicht stumm freigeben (offen ist sie schon beim Klingeln/Wählen).
@@ -1356,7 +1379,7 @@ function watchMic(active) {
     since = performance.now();
     const stalled = (mic && mic !== 'pending') || (audio && audio.ctx.state !== 'running');
     if (stalled) {
-      restartAudio(`${text} (Audio ${audio ? audio.ctx.state : '?'})`);
+      restartAudio(`${text} (${audioDiag()})`);
       return;
     }
     audioLog(text);
@@ -1384,7 +1407,7 @@ function watchMic(active) {
       reopen(`Mikrofon liefert seit ${Math.round(waited / 1000)} s nichts (${mic === 'pending' ? 'Öffnen hängt' : mic ? 'offen' : 'zu'})`);
     } else if (!warned) {
       warned = true;
-      audioLog('Mikrofon liefert auch nach dem Neustart nichts');
+      audioLog(`Mikrofon liefert auch nach dem Neustart nichts (${audioDiag()})`);
       toast('Mikrofon liefert keinen Ton. Bitte Mikrofon bzw. Headset prüfen oder mrphone neu starten.', true, 10000);
     } else if (waited >= 10000) {
       reopen('Mikrofon liefert weiter nichts – neuer Versuch');
@@ -2228,6 +2251,17 @@ window.phone.onState((s) => {
   // Neues Gespräch: Geräteliste frisch lesen und zuordnen – spätestens jetzt das richtige Gerät
   if (newCall) refreshDevices().then(() => applySinks()).catch(() => {});
   if (wasTalking && !s.call) playTone('hangup'); // hörbares Zeichen: Gespräch ist beendet
+});
+// PC entsperrt: Windows meldet Headsets dabei oft neu an, und die Audio-Kette bleibt danach manchmal stehen
+// (Mikrofon offen, aber es kommt nichts – erst ein Neustart von mrphone half). Ohne Gespräch vorsorglich
+// frisch aufbauen, damit der nächste Anruf eine funktionierende Kette hat; im Gespräch greift die Überwachung.
+const UNLOCK_RESTART_MS = 3000;
+let unlockRestart = null;
+window.phone.onUnlocked(() => {
+  clearTimeout(unlockRestart);
+  unlockRestart = setTimeout(() => {
+    if (!state.call) restartAudio('PC entsperrt');
+  }, UNLOCK_RESTART_MS);
 });
 window.phone.onEnded((reason) => toast(reason));
 window.phone.onInfo((text) => toast(text));

@@ -79,6 +79,7 @@
     onAudio,
     onAudioFormat: (cb) => on('phone:audioFormat', cb),
     onInfo: (cb) => on('phone:info', cb),
+    onUnlocked: (cb) => on('phone:unlocked', cb),
   };
 
   // Eigene Titelleiste: Die Kopfzeile der Oberfläche zieht das Fenster (app-region: drag, wie in der

@@ -401,8 +401,11 @@ fn screen_lock_changed(app: &AppHandle, locked: bool) {
     });
     if locked {
         apply_screen_lock(app);
-    } else if let Some(state) = app.try_state::<AppState>() {
-        state.phone.send(PhoneCmd::Unlock);
+    } else {
+        if let Some(state) = app.try_state::<AppState>() {
+            state.phone.send(PhoneCmd::Unlock);
+        }
+        let _ = app.emit("phone:unlocked", ()); // Oberfläche baut die Audio-Kette frisch auf
     }
 }
 
