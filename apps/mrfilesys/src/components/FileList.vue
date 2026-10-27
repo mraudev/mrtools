@@ -9,6 +9,7 @@ import { openEntry, openSelection } from "@/lib/actions";
 import { beginDrag, drag } from "@/lib/dnd";
 import { typeLabel } from "@/lib/fileTypes";
 import { formatBytes, formatDate } from "@/lib/format";
+import { gitStatus, nameColor } from "@/lib/git";
 import { selectOnly, selectRange, settings, sortBy, state, toggleSelected, visible } from "@/lib/store";
 import type { Entry, SortKey } from "@/lib/types";
 
@@ -230,9 +231,11 @@ const sortColumns: { key: SortKey; label: string; class: string }[] = [
                   @click="onItemClick($event, entry)"
                   @dblclick="openEntry(entry)"
                 >
-                  <EntryIcon :entry="entry" size="large" class="size-10" :stroke-width="1.5" />
+                  <EntryIcon :entry="entry" size="large" :git="gitStatus(entry)" class="size-10" :stroke-width="1.5" />
                   <RenameInput v-if="state.renaming === entry.path" :path="entry.path" :name="entry.name" class="w-full text-center" />
-                  <span v-else class="line-clamp-2 w-full text-xs leading-4 break-words">{{ entry.name }}</span>
+                  <span v-else class="line-clamp-2 w-full text-xs leading-4 break-words" :class="nameColor(gitStatus(entry))">
+                    {{ entry.name }}
+                  </span>
                 </div>
               </div>
 
@@ -257,9 +260,9 @@ const sortColumns: { key: SortKey; label: string; class: string }[] = [
                   @dblclick="openEntry(entry)"
                 >
                   <div class="flex min-w-0 items-center gap-2 px-2">
-                    <EntryIcon :entry="entry" class="size-4" />
+                    <EntryIcon :entry="entry" :git="gitStatus(entry)" class="size-4" />
                     <RenameInput v-if="state.renaming === entry.path" :path="entry.path" :name="entry.name" class="flex-1" />
-                    <span v-else class="truncate">{{ entry.name }}</span>
+                    <span v-else class="truncate" :class="nameColor(gitStatus(entry))">{{ entry.name }}</span>
                   </div>
                   <div class="truncate px-2 text-xs text-muted-foreground tabular-nums">{{ formatDate(entry.modified) }}</div>
                   <div class="truncate px-2 text-xs text-muted-foreground">{{ typeLabel(entry) }}</div>

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { Eye, EyeOff, LayoutGrid, List, PanelRight } from "@lucide/vue";
+import { Eye, EyeOff, LayoutGrid, List, PanelRight, Settings } from "@lucide/vue";
 import logo from "@/assets/logo.svg";
 import Segmented from "@mrtools/ui/components/Segmented";
 import Tip from "@mrtools/ui/components/Tip";
 import WindowControls from "@mrtools/ui/components/WindowControls";
-import { settings } from "@/lib/store";
+import { settings, state } from "@/lib/store";
 
 const views = [
   { value: "list" as const, label: "Liste", icon: List },
@@ -48,6 +48,9 @@ const views = [
         >
           <PanelRight />
         </button>
+      </Tip>
+      <Tip text="Einstellungen (Strg+,)" side="bottom">
+        <button class="icon-btn" aria-label="Einstellungen" @click="state.settingsOpen = true"><Settings /></button>
       </Tip>
     </div>
 

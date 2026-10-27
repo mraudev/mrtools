@@ -1,6 +1,7 @@
 mod delete;
 mod drives;
 mod files;
+mod git;
 mod icons;
 mod props;
 mod search;
@@ -50,6 +51,9 @@ pub fn run() {
             search::search_status,
             search::rebuild_index,
             icons::file_icons,
+            git::git_status,
+            git::git_last_commit,
+            git::git_version,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

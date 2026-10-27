@@ -9,6 +9,7 @@ import DragOverlay from "./components/DragOverlay.vue";
 import FileList from "./components/FileList.vue";
 import PropertiesDialog from "./components/PropertiesDialog.vue";
 import SearchResults from "./components/SearchResults.vue";
+import SettingsDialog from "./components/SettingsDialog.vue";
 import Sidebar from "./components/Sidebar.vue";
 import StatusBar from "./components/StatusBar.vue";
 import ThisPC from "./components/ThisPC.vue";
@@ -30,6 +31,7 @@ import {
 } from "./lib/actions";
 import { initDeletion } from "./lib/deletion";
 import { initExternalDrop } from "./lib/dnd";
+import { initGit } from "./lib/git";
 import { initTransfer } from "./lib/transfer";
 import { initSearch, search, searchEverywhere, searching } from "./lib/search";
 import { baseName } from "./lib/paths";
@@ -69,7 +71,8 @@ function onKeydown(event: KeyboardEvent) {
   if (event.altKey && event.key === "ArrowUp") return run(goUp);
   if (ctrl && key === "h") return run(() => (settings.showHidden = !settings.showHidden));
   if (event.altKey && key === "p") return run(() => (settings.showDetails = !settings.showDetails));
-  if (typing || state.confirmDelete.length || state.properties.length) return;
+  if (ctrl && key === ",") return run(() => (state.settingsOpen = true));
+  if (typing || state.confirmDelete.length || state.properties.length || state.settingsOpen) return;
 
   if (event.key === "Backspace") return run(goUp);
   if (ctrl && event.shiftKey && key === "n") return run(() => createNew(true));
@@ -98,6 +101,7 @@ onMounted(() => {
   initDeletion();
   initTransfer();
   initSearch();
+  initGit();
   startUpdateChecks();
 });
 
@@ -155,6 +159,7 @@ onUnmounted(() => {
     </Dialog>
     <ConflictDialog />
     <PropertiesDialog />
+    <SettingsDialog />
     <DragOverlay />
     <Toaster />
   </TooltipProvider>

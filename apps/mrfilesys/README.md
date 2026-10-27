@@ -42,6 +42,11 @@ Dateien und Ordner durchsuchen und verwalten – ähnlich wie der Windows-Explor
   Aus dem Fenster heraus in Explorer, Desktop oder andere Apps ziehen, und Dateien von dort hineinziehen
 - Ordner werden beim Zurückkehren ins Fenster neu eingelesen
 - **Echte Windows-Symbole** wie im Explorer (auch Programm-Icons, Verknüpfungen und Sonderordner)
+- **Git-Status** (optional): In Git-Repositories zeigt ein Symbol an Dateien und Ordnern, ob sie geändert,
+  vorgemerkt, nicht versioniert, im Konflikt oder ignoriert sind – Ordner mit dem wichtigsten Zustand ihres Inhalts.
+  Wahlweise Häkchen für Unverändertes, eingefärbte Dateinamen wie in VS Code und Branch mit ↑/↓ in der Statusleiste.
+  Nutzt das installierte Git (`git status`), aktualisiert beim Öffnen, mit <kbd>F5</kbd> und beim Zurückkehren ins Fenster
+- **Einstellungen** (<kbd>Strg</kbd>+<kbd>,</kbd> oder Zahnrad): Ansicht und Git-Optionen
 - Dunkles/helles Design
 - **Automatische Updates**: Prüfung beim Start und alle 4 Stunden, stiller Download, danach „Neu starten“
   oder Installation beim Beenden

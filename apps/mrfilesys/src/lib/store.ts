@@ -13,6 +13,19 @@ export interface Place {
   icon: "home" | "desktop" | "downloads" | "documents" | "pictures" | "music" | "videos";
 }
 
+export interface GitSettings {
+  /** Show git status at all. */
+  enabled: boolean;
+  /** Check mark on unchanged files and folders. */
+  clean: boolean;
+  /** Colour names of changed files like VS Code. */
+  colorNames: boolean;
+  /** Mark files and folders ignored by .gitignore. */
+  ignored: boolean;
+  /** Branch and ahead/behind in the status bar. */
+  branch: boolean;
+}
+
 interface Settings {
   view: "list" | "grid";
   sortKey: SortKey;
@@ -23,6 +36,7 @@ interface Settings {
   /** Sidebar sections that are collapsed. */
   collapsed: string[];
   lastPath: string;
+  git: GitSettings;
 }
 
 const SETTINGS_KEY = "settings";
@@ -35,14 +49,15 @@ const defaults: Settings = {
   favorites: [],
   collapsed: [],
   lastPath: "",
+  git: { enabled: true, clean: false, colorNames: true, ignored: true, branch: true },
 };
 
 function loadSettings(): Settings {
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}");
-    return { ...defaults, ...saved, favorites: readFavorites(saved.favorites) };
+    return { ...defaults, ...saved, favorites: readFavorites(saved.favorites), git: { ...defaults.git, ...saved.git } };
   } catch {
-    return { ...defaults };
+    return { ...defaults, git: { ...defaults.git } };
   }
 }
 
@@ -76,6 +91,7 @@ export const state = reactive({
   confirmDelete: [] as string[],
   /** Paths shown in the properties dialog (empty: closed). */
   properties: [] as string[],
+  settingsOpen: false,
   drives: [] as Drive[],
   places: [] as Place[],
 });

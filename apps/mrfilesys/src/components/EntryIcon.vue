@@ -3,6 +3,12 @@ import { computed, watch } from "vue";
 import {
   AppWindow,
   ArrowUpRight,
+  Check,
+  CircleHelp,
+  Minus,
+  Pencil,
+  Plus,
+  TriangleAlert,
   File,
   FileArchive,
   FileCode,
@@ -14,6 +20,7 @@ import {
   Folder,
 } from "@lucide/vue";
 import { kindOf } from "@/lib/fileTypes";
+import type { GitStatus } from "@/lib/git";
 import { iconKey, icons, requestIcon, type IconSize } from "@/lib/icons";
 import type { Entry } from "@/lib/types";
 
@@ -22,9 +29,23 @@ import type { Entry } from "@/lib/types";
  * a symbol for the file type is shown. The caller sets the size via `class`.
  */
 const props = withDefaults(
-  defineProps<{ entry: Pick<Entry, "name" | "isDir" | "link"> & { path?: string }; size?: IconSize }>(),
-  { size: "small" },
+  defineProps<{
+    entry: Pick<Entry, "name" | "isDir" | "link"> & { path?: string };
+    size?: IconSize;
+    /** Git state shown as a badge, like TortoiseGit. */
+    git?: GitStatus | null;
+  }>(),
+  { size: "small", git: null },
 );
+
+const gitBadges: Record<GitStatus, { icon: unknown; class: string; label: string }> = {
+  clean: { icon: Check, class: "bg-emerald-500", label: "unverändert" },
+  modified: { icon: Pencil, class: "bg-amber-500", label: "geändert" },
+  staged: { icon: Plus, class: "bg-sky-500", label: "vorgemerkt" },
+  untracked: { icon: CircleHelp, class: "bg-zinc-400 dark:bg-zinc-500", label: "nicht versioniert" },
+  conflict: { icon: TriangleAlert, class: "bg-red-600", label: "Konflikt" },
+  ignored: { icon: Minus, class: "bg-zinc-300 dark:bg-zinc-600", label: "ignoriert" },
+};
 
 const key = computed(() => iconKey(props.entry));
 watch([key, () => props.size], ([k, size]) => requestIcon(k, size), { immediate: true });
@@ -82,6 +103,15 @@ const color = computed(
       class="absolute -bottom-0.5 -left-0.5 grid size-[45%] min-h-2.5 min-w-2.5 place-items-center rounded-sm bg-white text-blue-600 shadow-sm"
     >
       <ArrowUpRight class="size-[85%]" :stroke-width="3" />
+    </span>
+    <!-- Git state, like TortoiseGit's overlays -->
+    <span
+      v-if="git"
+      class="absolute -right-1 -bottom-1 grid size-[55%] min-h-2.5 min-w-2.5 place-items-center rounded-full text-white ring-2 ring-card"
+      :class="gitBadges[git].class"
+      :title="`Git: ${gitBadges[git].label}`"
+    >
+      <component :is="gitBadges[git].icon" class="size-[70%]" :stroke-width="3.5" />
     </span>
   </span>
 </template>

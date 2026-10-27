@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Calculator, ExternalLink, FolderSearch, Info, LoaderCircle, Files } from "@lucide/vue";
 import EntryIcon from "./EntryIcon.vue";
+import GitInfo from "./GitInfo.vue";
 import Tip from "@mrtools/ui/components/Tip";
 import { toastError } from "@mrtools/ui/lib/toast";
 import { api } from "@/lib/api";
@@ -183,6 +184,8 @@ async function computeSize() {
             {{ sizing ? "Wird berechnet …" : "Ordnergröße berechnen" }}
           </button>
         </div>
+
+        <GitInfo :entry="entry" />
       </div>
     </template>
 
