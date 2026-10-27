@@ -51,6 +51,7 @@ class PhoneProcessor extends AudioWorkletProcessor {
     super();
     this.cap = new Int16Array(FRAME);
     this.capLen = 0;
+    this.beats = 0;
     this.configure(DEFAULT_RATE);
     this.port.onmessage = (e) => {
       if (e.data === 'reset') {
@@ -143,6 +144,11 @@ class PhoneProcessor extends AudioWorkletProcessor {
   process(inputs, outputs) {
     const input = inputs[0] && inputs[0][0];
     if (input) this.capture(input);
+    // Etwa jede Sekunde ein Lebenszeichen: läuft die Wiedergabe, und hat der Eingang (Mikrofon) Kanäle?
+    if (++this.beats >= Math.round(sampleRate / 128)) {
+      this.beats = 0;
+      this.port.postMessage({ type: 'beat', input: inputs[0] ? inputs[0].length : 0 });
+    }
 
     const out = outputs[0];
     const ch = out[0];

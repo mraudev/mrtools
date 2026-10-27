@@ -354,7 +354,7 @@ pub fn get_options(state: State<'_, AppState>) -> Value {
     let mut out = json!({});
     for k in OPTION_KEYS
         .iter()
-        .chain(["ringtonePreset", "theme", "design"].iter())
+        .chain(["ringtonePreset", "theme", "design", "hotkeyShow"].iter())
     {
         out[*k] = cfg[*k].clone();
     }
@@ -362,11 +362,22 @@ pub fn get_options(state: State<'_, AppState>) -> Value {
 }
 
 #[tauri::command]
-pub fn set_options(app: AppHandle, state: State<'_, AppState>, options: Value) {
+pub fn set_options(app: AppHandle, state: State<'_, AppState>, options: Value) -> Value {
     let mut cfg = state.cfg.lock().unwrap();
     for k in OPTION_KEYS {
         if let Some(b) = options[k].as_bool() {
             cfg[k] = json!(b);
+        }
+    }
+    // Strg+F9: nur speichern, wenn das Kürzel frei war
+    let mut result = Value::Null;
+    if let Some(on) = options["hotkeyShow"].as_bool() {
+        match crate::desktop::set_hotkey(&app, on) {
+            Ok(()) => cfg["hotkeyShow"] = json!(on),
+            Err(err) => {
+                cfg["hotkeyShow"] = json!(false);
+                result = error(err);
+            }
         }
     }
     if let Some(hd) = options["hdVoice"].as_bool() {
@@ -394,6 +405,7 @@ pub fn set_options(app: AppHandle, state: State<'_, AppState>, options: Value) {
         cfg["ringtonePreset"] = json!(p);
     }
     state.persist(&cfg);
+    result
 }
 
 #[tauri::command]

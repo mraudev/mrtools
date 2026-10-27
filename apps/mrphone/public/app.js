@@ -49,6 +49,8 @@ let micGen = 0; // je Öffnen neu – ein spät fertiges, abgelöstes Öffnen wi
 let micLive = false; // Mikrofon freigegeben (im Gespräch)
 let micChunkAt = 0; // letzter Block vom Mikrofon (performance.now())
 let micSoundAt = 0; // letzter Block, der nicht nur aus Nullen bestand
+let renderAt = 0; // letztes Lebenszeichen des Audio-Bausteins (Wiedergabe läuft)
+let micInputs = 0; // Kanäle am Eingang des Audio-Bausteins (0 = vom Mikrofon kommt nichts an)
 let micWatch = null; // Überwachung im Gespräch (setInterval)
 let micWatchStart = 0; // Beginn der Überwachung (Gesprächsbeginn)
 let muted = false;
@@ -1159,14 +1161,64 @@ async function initAudio() {
   gain.gain.value = typeof audioCfg.volume === 'number' ? audioCfg.volume : 1;
   node.connect(gain).connect(ctx.destination);
   node.port.onmessage = (e) => {
+    if (e.data && e.data.type === 'beat') {
+      if (!audio || node !== audio.node) return; // alte Kette nach einem Neuaufbau
+      renderAt = performance.now();
+      micInputs = e.data.input;
+      return;
+    }
     const pcm = new Int16Array(e.data);
     micChunkAt = performance.now();
     if (pcm.some((v) => v !== 0)) micSoundAt = micChunkAt;
     window.phone.sendAudio(pcm);
   };
-  audio = { ctx, node, gain, ringCtx: new AudioContext() };
+  const ringCtx = new AudioContext();
+  // Hält ein Audio-Baustein an oder meldet einen Fehler (z. B. weil Windows das Headset neu angemeldet oder
+  // Teams es umkonfiguriert hat): protokollieren, fortsetzen bzw. die Kette neu aufbauen.
+  for (const [role, c] of [['Gespräch', ctx], ['Klingeln', ringCtx]]) {
+    let down = false; // „running“ nur protokollieren, wenn der Baustein vorher angehalten war
+    c.addEventListener('statechange', () => {
+      if (!audio || (c !== audio.ctx && c !== audio.ringCtx) || c.state === 'closed') return;
+      if (c.state === 'running' && !down) return;
+      down = c.state !== 'running';
+      audioLog(`Audio ${role}: ${c.state}`);
+      if (down) c.resume().catch(() => {});
+    });
+    c.addEventListener('error', (e) => {
+      if (!audio || (c !== audio.ctx && c !== audio.ringCtx)) return;
+      audioLog(`Audio ${role} meldet Fehler: ${(e && (e.message || (e.error && e.error.message))) || 'unbekannt'}`);
+      restartAudio(`Fehler der Audio-Ausgabe (${role})`);
+    });
+  }
+  audio = { ctx, node, gain, ringCtx };
   await applySinks();
   $('audioGate').hidden = ctx.state === 'running';
+}
+
+// Audio-Kette neu aufbauen – wie ein Neustart von mrphone. Läuft der Audio-Baustein der WebView nicht mehr,
+// kommt weder etwas vom Mikrofon noch von der Gegenstelle durch; neu öffnen allein hilft dann nicht.
+let audioRestarting = false;
+async function restartAudio(reason) {
+  if (audioRestarting || !audio) return;
+  audioRestarting = true;
+  audioLog(`Audio wird neu aufgebaut: ${reason}`);
+  const old = audio;
+  stopMic();
+  stopTone();
+  sinkState.clear();
+  try {
+    await refreshDevices(); // nach einer Neuanmeldung des Headsets hat es oft eine neue Kennung
+    await initAudio();
+    audio.node.port.postMessage({ type: 'config', rate: callRate });
+    await loadRingtone();
+    for (const c of [old.ctx, old.ringCtx]) c.close().catch(() => {});
+    audioLog('Audio neu aufgebaut');
+  } catch (err) {
+    audio = old;
+    audioLog(`Audio-Neuaufbau fehlgeschlagen: ${err.message}`);
+  }
+  audioRestarting = false;
+  updateAudio(); // Mikrofon im Gespräch wieder öffnen, Töne wieder starten
 }
 
 async function unlockAudio() {
@@ -1190,16 +1242,52 @@ function activeSpeaker() {
   return speakerMode ? audioCfg.spkSpeaker : audioCfg.speaker;
 }
 
-async function applySinks() {
+// Ausgabegeräte zuordnen. Fehlt das eingestellte Gerät, nimmt Windows den Systemstandard – das steht dann
+// im Protokoll und als Hinweis, statt dass der Ton still woanders landet. force (nach Gerätewechsel): neu
+// setzen, auch wenn sich die Auswahl nicht geändert hat – war das Gerät kurz weg, hält der Browser die alte
+// Auswahl sonst für gültig und der Ton bliebe auf dem Ersatzgerät.
+const sinkState = new Map(); // AudioContext -> { label, missing }
+const SINK_RETRY_MS = 5000;
+const SINK_RETRY_FOR_MS = 120000;
+let sinkRetry = null; // Nachsehen, solange ein eingestelltes Gerät fehlt
+let sinkRetryUntil = 0;
+async function applySinks({ force = false } = {}) {
   if (!audio) return;
-  const sinks = [[audio.ctx, activeSpeaker()], [audio.ringCtx, audioCfg.ringer]];
-  for (const [ctx, name] of sinks) {
-    const id = deviceId('audiooutput', name);
+  const sinks = [['Gespräch', audio.ctx, activeSpeaker()], ['Klingeln', audio.ringCtx, audioCfg.ringer]];
+  for (const [role, ctx, name] of sinks) {
     if (!ctx.setSinkId) continue;
+    const dev = findDevice('audiooutput', name);
+    const id = dev ? dev.deviceId : '';
+    const missing = !!name && !dev;
+    const label = dev ? dev.label : missing ? `Systemstandard („${name}“ nicht gefunden)` : 'Systemstandard';
+    const prev = sinkState.get(ctx);
+    let failed = false;
     try {
-      await ctx.setSinkId(id || '');
+      if (force && ctx.sinkId === id && id) await ctx.setSinkId('');
+      if (ctx.sinkId !== id) await ctx.setSinkId(id);
     } catch (err) {
-      console.warn('setSinkId', err);
+      failed = true; // z. B. Headset gerade neu angemeldet: wie fehlend behandeln, gleich nochmal versuchen
+      audioLog(`${role}: „${label}“ ließ sich nicht einstellen: ${err.message}`);
+    }
+    if (!prev || prev.label !== label) audioLog(`${role}: ${label}`);
+    if (missing && !(prev && prev.missing)) {
+      toast(`${role === 'Gespräch' ? 'Gesprächsgerät' : 'Klingelgerät'} „${name}“ nicht gefunden – nutze Systemstandard`, true, 6000);
+    }
+    sinkState.set(ctx, { label: failed ? `${label} (nicht eingestellt)` : label, missing: missing || failed });
+  }
+  // Fehlt ein eingestelltes Gerät, regelmäßig nachsehen – nach einem Neustart meldet Windows das Headset oft
+  // erst nach mrphone an, und auf die Gerätewechsel-Meldung des Browsers ist dann kein Verlass.
+  const anyMissing = [...sinkState.values()].some((v) => v.missing);
+  if (!anyMissing) {
+    sinkRetryUntil = 0;
+  } else if (!sinkRetry) {
+    if (!sinkRetryUntil) sinkRetryUntil = performance.now() + SINK_RETRY_FOR_MS;
+    if (performance.now() < sinkRetryUntil) {
+      sinkRetry = setTimeout(async () => {
+        sinkRetry = null;
+        await refreshDevices();
+        applySinks();
+      }, SINK_RETRY_MS);
     }
   }
 }
@@ -1217,7 +1305,9 @@ async function startMic() {
   const t0 = performance.now();
   try {
     audio.node.port.postMessage({ type: 'config', rate: callRate }); // Mikrofon in der Codec-Rate aufnehmen
-    const id = deviceId('audioinput', activeMic());
+    await refreshDevices().catch(() => {}); // Headset evtl. erst nach dem Start angemeldet
+    const wanted = activeMic();
+    const id = deviceId('audioinput', wanted);
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: id ? { exact: id } : undefined,
@@ -1227,12 +1317,20 @@ async function startMic() {
         channelCount: 1,
       },
     });
-    audioLog(`Mikrofon geöffnet nach ${Math.round(performance.now() - t0)} ms${gen === micGen ? '' : ' (nicht mehr gebraucht)'}`);
+    const track = stream.getAudioTracks()[0];
+    const used = `${track ? track.label : '?'}${wanted && !id ? ` – „${wanted}“ nicht gefunden, Systemstandard` : ''}`;
+    audioLog(`Mikrofon geöffnet nach ${Math.round(performance.now() - t0)} ms: ${used}${gen === micGen ? '' : ' (nicht mehr gebraucht)'}`);
     if (gen !== micGen || mic !== 'pending') {
       stream.getTracks().forEach((t) => t.stop());
       return;
     }
-    for (const track of stream.getAudioTracks()) track.enabled = micLive && !muted;
+    for (const track of stream.getAudioTracks()) {
+      track.enabled = micLive && !muted;
+      // Meldet das Gerät keine Daten mehr (z. B. von Windows neu angemeldet), steht das hier im Protokoll
+      track.onmute = () => mic && mic.stream === stream && audioLog('Mikrofon: Gerät liefert keine Daten mehr (Spur stummgeschaltet)');
+      track.onunmute = () => mic && mic.stream === stream && audioLog('Mikrofon: Gerät liefert wieder Daten');
+      track.onended = () => mic && mic.stream === stream && audioLog('Mikrofon: Spur vom Gerät beendet');
+    }
     const source = audio.ctx.createMediaStreamSource(stream);
     source.connect(audio.node);
     mic = { stream, source };
@@ -1242,6 +1340,15 @@ async function startMic() {
     mic = null;
     toast(`Mikrofon: ${err.message}`, true);
   }
+}
+
+// Für das Protokoll, wenn vom Mikrofon nichts kommt: Steht die ganze Kette (keine Wiedergabe) oder nur
+// die Aufnahme (Eingang ohne Kanäle, Spur vom Gerät stummgeschaltet oder beendet)?
+function audioDiag() {
+  const render = performance.now() - renderAt < 2500 ? 'Wiedergabe läuft' : 'Wiedergabe steht';
+  const track = mic && mic !== 'pending' && mic.stream.getAudioTracks()[0];
+  const spur = track ? `Spur ${track.readyState === 'live' ? 'aktiv' : 'beendet'}${track.muted ? ', vom Gerät stummgeschaltet' : ''}` : 'keine Spur';
+  return `Audio ${audio ? audio.ctx.state : '?'}, ${render}, Eingang ${micInputs ? 'verbunden' : 'leer'}, ${spur}`;
 }
 
 // Spur nur im Gespräch und nicht stumm freigeben (offen ist sie schon beim Klingeln/Wählen).
@@ -1266,8 +1373,15 @@ function watchMic(active) {
   let retried = false;
   let warned = false;
   let silent = false;
+  // Hängt nur das Öffnen, das Mikrofon neu öffnen; ist es offen und trotzdem kommt nichts, steht der
+  // Audio-Baustein – dann die ganze Kette neu aufbauen.
   const reopen = (text) => {
     since = performance.now();
+    const stalled = (mic && mic !== 'pending') || (audio && audio.ctx.state !== 'running');
+    if (stalled) {
+      restartAudio(`${text} (${audioDiag()})`);
+      return;
+    }
     audioLog(text);
     stopMic();
     startMic();
@@ -1290,10 +1404,10 @@ function watchMic(active) {
     if (!retried) {
       retried = true;
       toast('Mikrofon liefert keinen Ton – starte es neu …', true);
-      reopen(`Mikrofon liefert seit ${Math.round(waited / 1000)} s nichts (${mic === 'pending' ? 'Öffnen hängt' : mic ? 'offen' : 'zu'}) – öffne es neu`);
+      reopen(`Mikrofon liefert seit ${Math.round(waited / 1000)} s nichts (${mic === 'pending' ? 'Öffnen hängt' : mic ? 'offen' : 'zu'})`);
     } else if (!warned) {
       warned = true;
-      audioLog('Mikrofon liefert auch nach dem Neustart nichts');
+      audioLog(`Mikrofon liefert auch nach dem Neustart nichts (${audioDiag()})`);
       toast('Mikrofon liefert keinen Ton. Bitte Mikrofon bzw. Headset prüfen oder mrphone neu starten.', true, 10000);
     } else if (waited >= 10000) {
       reopen('Mikrofon liefert weiter nichts – neuer Versuch');
@@ -1744,11 +1858,28 @@ async function refreshDevices() {
   defaultOutputLabel = def ? def.label : '';
 }
 
-// Linphone-Namen haben keinen "(vid:pid)"-Zusatz, daher auch Treffer über den Namensanfang.
+// Windows nummeriert neu angemeldete Geräte ("Speakers (2- Jabra Link 390)" -> nach Umstecken oder
+// Firmware-Update "(3- …)"), Chromium hängt bei USB-Geräten "(vid:pid)" an – beides zählt beim Wiederfinden
+// nicht. Linphone-Namen haben keinen "(vid:pid)"-Zusatz, daher auch Treffer über den Namensanfang.
+function normalizeLabel(label) {
+  return String(label || '')
+    .replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/i, '')
+    .replace(/\(\d+-\s*/g, '(')
+    .trim()
+    .toLowerCase();
+}
+
 function findDevice(kind, name) {
   if (!name) return null;
   const list = devices.filter((d) => d.kind === kind);
-  return list.find((d) => d.label === name) || list.find((d) => d.label.startsWith(name)) || null;
+  const norm = normalizeLabel(name);
+  return (
+    list.find((d) => d.label === name) ||
+    list.find((d) => d.label.startsWith(name)) ||
+    list.find((d) => normalizeLabel(d.label) === norm) ||
+    list.find((d) => normalizeLabel(d.label).startsWith(norm)) ||
+    null
+  );
 }
 
 function deviceId(kind, name) {
@@ -2057,6 +2188,13 @@ $('favCancel').onclick = () => $('favDialog').close();
 $('favDelete').onclick = deleteFavorite;
 $('lockUnregister').onchange = () => window.phone.setOptions({ lockUnregister: $('lockUnregister').checked });
 $('showOnCall').onchange = () => window.phone.setOptions({ showOnCall: $('showOnCall').checked });
+$('hotkeyShow').onchange = async () => {
+  const res = await window.phone.setOptions({ hotkeyShow: $('hotkeyShow').checked });
+  if (res && res.error) {
+    $('hotkeyShow').checked = false;
+    toast(res.error, true);
+  }
+};
 $('micProcessing').onchange = () => {
   micProcessing = $('micProcessing').checked;
   window.phone.setOptions({ micProcessing });
@@ -2101,15 +2239,29 @@ $('settings').addEventListener('close', stopMeter);
 // Headset an-/abgesteckt: gespeicherte Auswahl neu zuordnen
 navigator.mediaDevices.addEventListener('devicechange', async () => {
   await refreshDevices();
-  applySinks();
+  applySinks({ force: true });
 });
 setInterval(updateCallStatus, 1000);
 
 window.phone.onState((s) => {
   const wasTalking = !!state.call && state.call.state === 'active'; // nur verbundene Gespräche, nicht verpasste
+  const newCall = !state.call && !!s.call;
   state = s;
   render();
+  // Neues Gespräch: Geräteliste frisch lesen und zuordnen – spätestens jetzt das richtige Gerät
+  if (newCall) refreshDevices().then(() => applySinks()).catch(() => {});
   if (wasTalking && !s.call) playTone('hangup'); // hörbares Zeichen: Gespräch ist beendet
+});
+// PC entsperrt: Windows meldet Headsets dabei oft neu an, und die Audio-Kette bleibt danach manchmal stehen
+// (Mikrofon offen, aber es kommt nichts – erst ein Neustart von mrphone half). Ohne Gespräch vorsorglich
+// frisch aufbauen, damit der nächste Anruf eine funktionierende Kette hat; im Gespräch greift die Überwachung.
+const UNLOCK_RESTART_MS = 3000;
+let unlockRestart = null;
+window.phone.onUnlocked(() => {
+  clearTimeout(unlockRestart);
+  unlockRestart = setTimeout(() => {
+    if (!state.call) restartAudio('PC entsperrt');
+  }, UNLOCK_RESTART_MS);
 });
 window.phone.onEnded((reason) => toast(reason));
 window.phone.onInfo((text) => toast(text));
@@ -2153,6 +2305,7 @@ window.phone.onAudioFormat((fmt) => {
     const options = await window.phone.getOptions();
     $('lockUnregister').checked = options.lockUnregister;
     $('showOnCall').checked = options.showOnCall;
+    $('hotkeyShow').checked = !!options.hotkeyShow;
     micProcessing = options.micProcessing;
     $('micProcessing').checked = micProcessing;
     $('hdVoice').checked = options.hdVoice;
