@@ -187,14 +187,19 @@ export function goUp() {
 
 /** Reloads the current folder and keeps the selection where possible. */
 export async function refresh(options: { quiet?: boolean; select?: string[] } = {}) {
-  let entries: Entry[] | null;
+  // Never cancels a navigation under way – e.g. a folder handed over from Explorer, which also focuses
+  // the window and so triggers a refresh of the old folder.
+  if (state.loading) return;
+  const path = state.path;
+  let entries: Entry[];
   try {
-    entries = await load(state.path);
+    entries = path ? await api.listDir(path) : [];
+    if (!path) loadDrives();
   } catch (e) {
     if (!options.quiet) toastError("Ordner konnte nicht neu geladen werden", e);
     return;
   }
-  if (!entries) return;
+  if (path !== state.path || state.loading) return;
   state.entries = entries;
   const exists = new Set(entries.map((e) => e.path));
   const wanted = options.select ?? [...state.selected];
