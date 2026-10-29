@@ -2236,10 +2236,25 @@ $('ringtoneChoose').onclick = chooseRingtone;
 $('ringtoneSelect').onchange = chooseRingtonePreset;
 for (const b of document.querySelectorAll('.stab')) b.onclick = () => setSettingsTab(b.dataset.stab);
 $('settings').addEventListener('close', stopMeter);
-// Headset an-/abgesteckt: gespeicherte Auswahl neu zuordnen
+// Kennungen der eingestellten Geräte, soweit vorhanden ('' = fehlt) – um ein Wiederanstecken zu erkennen
+function configuredDeviceIds() {
+  return [['audioinput', activeMic()], ['audiooutput', activeSpeaker()], ['audiooutput', audioCfg.ringer]].map(([kind, name]) =>
+    deviceId(kind, name),
+  );
+}
+// Headset an-/abgesteckt: gespeicherte Auswahl neu zuordnen. Kommt ein eingestelltes Gerät wieder (oder mit
+// neuer Kennung), bleibt die Audio-Kette sonst manchmal stehen wie nach dem Entsperren (Mikrofon offen, aber
+// es kommt nichts): kurz warten, bis Windows alle Teile des Headsets angemeldet hat, dann neu aufbauen.
+const REPLUG_RESTART_MS = 2000;
+let replugRestart = null;
 navigator.mediaDevices.addEventListener('devicechange', async () => {
+  const before = configuredDeviceIds();
   await refreshDevices();
   applySinks({ force: true });
+  const after = configuredDeviceIds();
+  if (!audio || !after.some((id, i) => id && id !== before[i])) return;
+  clearTimeout(replugRestart);
+  replugRestart = setTimeout(() => restartAudio('Headset wieder angeschlossen'), REPLUG_RESTART_MS);
 });
 setInterval(updateCallStatus, 1000);
 
