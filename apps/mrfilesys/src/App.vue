@@ -34,6 +34,7 @@ import { initExternalDrop } from "./lib/dnd";
 import { initGit } from "./lib/git";
 import { initTransfer } from "./lib/transfer";
 import { initSearch, search, searchEverywhere, searching } from "./lib/search";
+import { closeTab, cycleTab, initTabs, openTab, selectTab, tabs } from "./lib/tabs";
 import { baseName } from "./lib/paths";
 import { goBack, goForward, goUp, initStore, refresh, selectAll, selectedEntries, settings, state } from "./lib/store";
 import "@mrtools/ui/lib/theme";
@@ -72,6 +73,10 @@ function onKeydown(event: KeyboardEvent) {
   if (ctrl && key === "h") return run(() => (settings.showHidden = !settings.showHidden));
   if (event.altKey && key === "p") return run(() => (settings.showDetails = !settings.showDetails));
   if (ctrl && key === ",") return run(() => (state.settingsOpen = true));
+  if (ctrl && !event.shiftKey && key === "t") return run(() => openTab(""));
+  if (ctrl && key === "w") return run(() => closeTab(tabs.active));
+  if (ctrl && event.key === "Tab") return run(() => cycleTab(event.shiftKey ? -1 : 1));
+  if (ctrl && /^[1-9]$/.test(event.key)) return run(() => selectTab(Number(event.key)));
   if (typing || state.confirmDelete.length || state.properties.length || state.settingsOpen) return;
 
   if (event.key === "Backspace") return run(goUp);
@@ -81,7 +86,7 @@ function onKeydown(event: KeyboardEvent) {
   if (ctrl && key === "x") return run(() => copyToClipboard(paths, true));
   if (ctrl && key === "v") return run(() => paste());
   if (ctrl && key === "a") return run(selectAll);
-  if (ctrl && key === "t" && state.path) return run(() => openTerminal(state.path));
+  if (ctrl && event.shiftKey && key === "t" && state.path) return run(() => openTerminal(state.path));
   if (event.key === "Delete") return run(() => deleteSelection(event.shiftKey));
   if (event.key === "F2" && paths.length === 1) return run(() => startRename(paths[0]));
   if (event.altKey && event.key === "Enter") return run(() => openProperties(paths.length ? paths : [state.path].filter(Boolean)));
@@ -97,6 +102,7 @@ onMounted(() => {
   window.addEventListener("keydown", onKeydown);
   window.addEventListener("mouseup", onMouseup);
   initStore();
+  initTabs();
   initExternalDrop();
   initDeletion();
   initTransfer();

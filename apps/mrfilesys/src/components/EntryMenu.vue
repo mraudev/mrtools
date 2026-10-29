@@ -21,6 +21,7 @@ import {
   FolderPlus,
   FolderSearch,
   Info,
+  PanelTop,
   Pencil,
   Plus,
   RefreshCw,
@@ -44,6 +45,7 @@ import {
   openProperties,
   startRename,
 } from "@/lib/actions";
+import { openTab } from "@/lib/tabs";
 import { isFavorite, refresh, selectedEntries, state, toggleFavorite } from "@/lib/store";
 
 /** `onEntry`: opened on a (selected) entry, otherwise on the empty folder background. */
@@ -61,6 +63,9 @@ const single = computed(() => (entries.value.length === 1 ? entries.value[0] : u
         <ContextMenuItem class="menu-item font-medium" @select="openSelection">
           <FolderOpen v-if="entries[0].isDir" /><ExternalLink v-else />Öffnen
           <span class="kbd ml-auto font-normal">Enter</span>
+        </ContextMenuItem>
+        <ContextMenuItem v-if="single?.isDir" class="menu-item" @select="openTab(single.path, true)">
+          <PanelTop />In neuem Tab öffnen<span class="kbd ml-auto">Mittelklick</span>
         </ContextMenuItem>
         <ContextMenuItem v-if="single && !single.isDir" class="menu-item" @select="openWith(single.path)">
           <AppWindow />Öffnen mit …

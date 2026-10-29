@@ -24,7 +24,7 @@ import EntryIcon from "./EntryIcon.vue";
 import Tip from "@mrtools/ui/components/Tip";
 import { copyPaths, copyToClipboard, openEntry, openProperties, showInExplorer } from "@/lib/actions";
 import { formatBytes, formatCount, formatDate } from "@/lib/format";
-import { parentPath } from "@/lib/paths";
+import { baseName, parentPath } from "@/lib/paths";
 import { LIMIT, rebuildIndex, search } from "@/lib/search";
 import { navigate, state } from "@/lib/store";
 import type { SearchHit } from "@/lib/types";
@@ -97,8 +97,9 @@ function since(ms: number) {
       <span v-if="search.loading" class="inline-flex items-center gap-1.5">
         <LoaderCircle class="size-3.5 animate-spin" />Suche …
       </span>
-      <span v-else-if="search.status.entries" class="tabular-nums">
+      <span v-else-if="!search.everywhere || search.status.entries" class="min-w-0 truncate tabular-nums">
         <span class="font-medium text-foreground">{{ formatCount(search.total) }} Treffer</span>
+        {{ search.everywhere ? "auf allen Laufwerken" : `in ${baseName(state.path)} und Unterordnern` }}
         <template v-if="search.total > LIMIT"> · die ersten {{ formatCount(LIMIT) }}</template>
         · {{ search.elapsedMs }} ms
       </span>
@@ -117,7 +118,7 @@ function since(ms: number) {
       </Tip>
     </div>
 
-    <div v-if="!search.status.entries" class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-muted-foreground">
+    <div v-if="search.everywhere && !search.status.entries" class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-muted-foreground">
       <DatabaseZap class="size-8 opacity-60" />
       <p class="font-medium text-foreground">Der Suchindex wird aufgebaut</p>
       <p class="max-w-sm text-xs">

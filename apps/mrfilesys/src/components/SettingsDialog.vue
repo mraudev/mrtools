@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { GitBranch, LayoutGrid, List, Settings, TriangleAlert } from "@lucide/vue";
+import { computed, ref } from "vue";
+import { FolderOpen, GitBranch, LayoutGrid, List, Settings, TriangleAlert } from "@lucide/vue";
 import EntryIcon from "./EntryIcon.vue";
 import Toggle from "./Toggle.vue";
 import Dialog from "@mrtools/ui/components/Dialog";
 import Segmented from "@mrtools/ui/components/Segmented";
+import { toastError } from "@mrtools/ui/lib/toast";
+import { api } from "@/lib/api";
 import { git, type GitStatus } from "@/lib/git";
 import { settings, state } from "@/lib/store";
 
@@ -12,6 +14,20 @@ const open = computed({
   get: () => state.settingsOpen,
   set: (value) => (state.settingsOpen = value),
 });
+
+const savingMenu = ref(false);
+
+async function setContextMenu(enabled: boolean) {
+  savingMenu.value = true;
+  try {
+    await api.setContextMenu(enabled);
+    settings.contextMenu = enabled;
+  } catch (e) {
+    toastError("Kontextmenü konnte nicht geändert werden", e);
+  } finally {
+    savingMenu.value = false;
+  }
+}
 
 const views = [
   { value: "list" as const, label: "Liste", icon: List },
@@ -60,6 +76,27 @@ const legend: { status: GitStatus; label: string }[] = [
             <Toggle v-model="settings.showDetails" label="Detailbereich anzeigen" />
           </label>
         </div>
+      </section>
+
+      <section>
+        <h3 class="mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          <FolderOpen class="size-3.5" />Windows-Explorer
+        </h3>
+        <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-border px-3 py-2.5">
+          <span class="flex-1">
+            <span class="block font-medium">„mrfilesys hier öffnen“ im Kontextmenü</span>
+            <span class="block text-xs text-muted-foreground">
+              Rechtsklick auf einen Ordner, ein Laufwerk oder in einen Ordner öffnet ihn in mrfilesys – in einem neuen
+              Tab, wenn mrfilesys schon läuft. Unter Windows 11 steht der Eintrag unter „Weitere Optionen anzeigen“.
+            </span>
+          </span>
+          <Toggle
+            :model-value="settings.contextMenu"
+            label="Im Explorer-Kontextmenü"
+            :disabled="savingMenu"
+            @update:model-value="setContextMenu"
+          />
+        </label>
       </section>
 
       <section>

@@ -12,6 +12,7 @@ import {
   Image,
   Monitor,
   Music,
+  PanelTop,
   Network,
   SquareTerminal,
   Star,
@@ -27,6 +28,7 @@ import { beginFavoriteDrag, drag } from "@/lib/dnd";
 import { formatBytes } from "@/lib/format";
 import { baseName, isInside } from "@/lib/paths";
 import { isCollapsed, isFavorite, navigate, settings, state, toggleFavorite, toggleSection, type Place } from "@/lib/store";
+import { openOnMiddleClick, openTab } from "@/lib/tabs";
 import type { Drive } from "@/lib/types";
 
 const placeIcons: Record<Place["icon"], unknown> = {
@@ -71,6 +73,8 @@ const dropping = "ring-2 ring-accent ring-inset bg-accent/20";
         class="flex h-full flex-col gap-3 overflow-y-auto px-2 py-3"
         aria-label="Orte"
         @contextmenu.capture="(menuPath = ''), (menuIsDir = true)"
+        @mousedown.middle.prevent
+        @auxclick="openOnMiddleClick"
       >
         <section>
           <button :class="[item, state.path === '' ? current : idle]" @click="navigate('')">
@@ -169,6 +173,9 @@ const dropping = "ring-2 ring-accent ring-inset bg-accent/20";
       <ContextMenuContent v-if="menuPath" class="menu anim-pop">
         <ContextMenuItem class="menu-item" @select="openEntry({ path: menuPath, isDir: menuIsDir })">
           <Folder v-if="menuIsDir" /><ExternalLink v-else />Öffnen
+        </ContextMenuItem>
+        <ContextMenuItem v-if="menuIsDir" class="menu-item" @select="openTab(menuPath, true)">
+          <PanelTop />In neuem Tab öffnen
         </ContextMenuItem>
         <ContextMenuItem class="menu-item" @select="showInExplorer(menuPath)"><FolderSearch />Im Explorer zeigen</ContextMenuItem>
         <ContextMenuItem v-if="menuIsDir" class="menu-item" @select="openTerminal(menuPath)">

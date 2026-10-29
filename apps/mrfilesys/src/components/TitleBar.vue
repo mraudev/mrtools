@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Eye, EyeOff, LayoutGrid, List, PanelRight, Settings } from "@lucide/vue";
 import logo from "@/assets/logo.svg";
+import TabBar from "./TabBar.vue";
 import Segmented from "@mrtools/ui/components/Segmented";
 import Tip from "@mrtools/ui/components/Tip";
 import WindowControls from "@mrtools/ui/components/WindowControls";
@@ -22,6 +23,7 @@ const views = [
       <span class="pointer-events-none text-[13px] font-semibold tracking-tight">mrfilesys</span>
     </div>
 
+    <TabBar />
     <div class="min-w-6 flex-1" data-tauri-drag-region />
 
     <div class="flex items-center gap-1 pr-2">

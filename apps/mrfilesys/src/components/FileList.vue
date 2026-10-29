@@ -10,6 +10,7 @@ import { beginDrag, drag } from "@/lib/dnd";
 import { typeLabel } from "@/lib/fileTypes";
 import { formatBytes, formatDate } from "@/lib/format";
 import { gitStatus, nameColor } from "@/lib/git";
+import { openOnMiddleClick } from "@/lib/tabs";
 import { selectOnly, selectRange, settings, sortBy, state, toggleSelected, visible } from "@/lib/store";
 import type { Entry, SortKey } from "@/lib/types";
 
@@ -201,6 +202,8 @@ const sortColumns: { key: SortKey; label: string; class: string }[] = [
           @scroll="scrollTop = ($event.target as HTMLElement).scrollTop"
           @keydown="onKeydown"
           @mousedown="onBackgroundMousedown"
+          @mousedown.middle.prevent
+          @auxclick="openOnMiddleClick"
           :data-drop="state.path"
           :class="drag.op && drag.target === state.path && 'ring-2 ring-accent/60 ring-inset'"
           @contextmenu="onContextmenu"

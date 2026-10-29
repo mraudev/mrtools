@@ -8,9 +8,9 @@ import type { IndexStatus, SearchHit } from "./types";
 /** Hits shown at most – the total is still counted. */
 export const LIMIT = 500;
 
-/** Search over all local drives (see `src-tauri/src/search.rs`); the query is `state.filter`. */
+/** Search below the current folder or over all local drives (see `src-tauri/src/search.rs`); the query is `state.filter`. */
 export const search = reactive({
-  /** The search box searches everywhere instead of filtering the current folder. */
+  /** The search box searches all drives instead of the current folder and its subfolders. */
   everywhere: false,
   hits: [] as SearchHit[],
   total: 0,
@@ -19,7 +19,8 @@ export const search = reactive({
   status: { entries: 0, builtAt: 0, building: false, scanned: 0 } as IndexStatus,
 });
 
-export const searching = () => search.everywhere && state.filter.trim() !== "";
+/** Without a folder (the drive overview) the search box only filters the list. */
+export const searching = () => (search.everywhere || state.path !== "") && state.filter.trim() !== "";
 
 let token = 0;
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -27,7 +28,7 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 async function run() {
   const query = state.filter.trim();
   const mine = ++token;
-  if (!search.everywhere || !query) {
+  if (!searching()) {
     search.hits = [];
     search.total = 0;
     search.loading = false;
@@ -35,7 +36,7 @@ async function run() {
   }
   search.loading = true;
   try {
-    const results = await api.search(query, LIMIT);
+    const results = await api.search(query, LIMIT, search.everywhere ? null : state.path);
     if (mine !== token) return;
     search.hits = results.hits;
     search.total = results.total;

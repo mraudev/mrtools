@@ -25,7 +25,9 @@ export const api = {
   setAttributes: (paths: string[], attrs: { readonly?: boolean; hidden?: boolean }) =>
     invoke<void>("set_attributes", { paths, readonly: attrs.readonly ?? null, hidden: attrs.hidden ?? null }),
   hashes: (path: string) => invoke<Hashes>("hashes", { path }),
-  search: (query: string, limit: number) => invoke<SearchResults>("search", { query, limit }),
+  search: (query: string, limit: number, within: string | null) =>
+    invoke<SearchResults>("search", { query, limit, within }),
+  setContextMenu: (enabled: boolean) => invoke<void>("set_context_menu", { enabled }),
   searchStatus: () => invoke<IndexStatus>("search_status"),
   rebuildIndex: () => invoke<void>("rebuild_index"),
   openPath: (path: string) => invoke<void>("open_path", { path }),

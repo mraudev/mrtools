@@ -1,3 +1,6 @@
+use tauri::{Emitter, Manager};
+
+mod context_menu;
 mod delete;
 mod drives;
 mod files;
@@ -11,6 +14,18 @@ mod transfer;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Must come first: a second start (e.g. from Explorer's context menu) hands its folder to the
+        // running window, which opens it in a tab.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if let Some(path) = context_menu::folder_arg(&args) {
+                let _ = app.emit("open-path", path);
+            }
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -54,6 +69,8 @@ pub fn run() {
             git::git_status,
             git::git_last_commit,
             git::git_version,
+            context_menu::launch_path,
+            context_menu::set_context_menu,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

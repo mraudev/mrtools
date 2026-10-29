@@ -8,6 +8,7 @@ use serde::Serialize;
 use std::{
     fs,
     io::{self, BufWriter, Write},
+    ops::Range,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -256,9 +257,14 @@ fn matches(index: &Index, id: usize, terms: &[Term]) -> bool {
     })
 }
 
-/// Ids of all entries matching `query`, best first: exact name, name starting with the first term,
-/// shorter names.
+#[cfg(test)]
 fn find(index: &Index, query: &str) -> Vec<u32> {
+    find_in(index, query, 0..index.len())
+}
+
+/// Ids of the entries in `range` matching `query`, best first: exact name, name starting with the first
+/// term, shorter names.
+fn find_in(index: &Index, query: &str, range: Range<usize>) -> Vec<u32> {
     let terms = parse(query);
     if terms.is_empty() {
         return Vec::new();
@@ -272,7 +278,9 @@ fn find(index: &Index, query: &str) -> Vec<u32> {
         Some(anchor) => {
             let mut ids = Vec::new();
             let mut last = usize::MAX;
-            for pos in memmem::find_iter(index.lower.as_bytes(), anchor.as_bytes()) {
+            let base = index.lower_off[range.start] as usize;
+            let names = &index.lower.as_bytes()[base..index.lower_off[range.end] as usize];
+            for pos in memmem::find_iter(names, anchor.as_bytes()).map(|pos| pos + base) {
                 let id = index.lower_off.partition_point(|&o| o as usize <= pos) - 1;
                 // Hits across two names do not count.
                 if id != last && pos + anchor.len() <= index.lower_off[id + 1] as usize && matches(index, id, &terms) {
@@ -282,7 +290,7 @@ fn find(index: &Index, query: &str) -> Vec<u32> {
             }
             ids
         }
-        None => (0..index.len()).into_par_iter().filter(|&id| matches(index, id, &terms)).map(|id| id as u32).collect(),
+        None => range.into_par_iter().filter(|&id| matches(index, id, &terms)).map(|id| id as u32).collect(),
     };
     let first = match &terms[0] {
         Term::Text(t) | Term::Path(t) => t.clone(),
@@ -300,6 +308,28 @@ fn find(index: &Index, query: &str) -> Vec<u32> {
         (rank, name.len(), id)
     });
     ids
+}
+
+/// Id of the folder `dir` in the index, if it is in there.
+fn locate(index: &Index, dir: &str) -> Option<usize> {
+    let mut target = dir.to_lowercase();
+    // `C:\` keeps its backslash, `C:\Users\` loses it.
+    if target.len() > 3 && target.ends_with('\\') {
+        target.pop();
+    }
+    let name = Path::new(&target).file_name().map_or(target.clone(), |n| n.to_string_lossy().into_owned());
+    (0..index.len()).into_par_iter().find_any(|&id| {
+        index.is_dir[id] && index.lower_name(id) == name && index.path(id).to_string_lossy().to_lowercase() == target
+    })
+}
+
+/// Ids of everything below `id` – entries are stored depth first, so that is one range.
+fn subtree(index: &Index, id: usize) -> Range<usize> {
+    let mut end = id + 1;
+    while end < index.len() && index.parent[end] != NO_PARENT && index.parent[end] as usize >= id {
+        end += 1;
+    }
+    id + 1..end
 }
 
 // ---------------------------------------------------------------------------
@@ -414,14 +444,37 @@ pub struct Results {
     elapsed_ms: u64,
 }
 
+/// Searches everywhere, or with `within` only below that folder. A folder that is not in the index (other
+/// drives, newer than the index, index still being built) is read right away instead.
 #[tauri::command]
-pub async fn search(search: State<'_, Search>, query: String, limit: usize) -> Result<Results, String> {
-    let Some(index) = search.index.read().unwrap().clone() else {
-        return Ok(Results { total: 0, hits: Vec::new(), elapsed_ms: 0 });
-    };
+pub async fn search(
+    search: State<'_, Search>,
+    query: String,
+    limit: usize,
+    within: Option<String>,
+) -> Result<Results, String> {
+    let index = search.index.read().unwrap().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let started = Instant::now();
-        let ids = find(&index, &query);
+        let (index, range) = match (index, within) {
+            (None, None) => return Results { total: 0, hits: Vec::new(), elapsed_ms: 0 },
+            (Some(index), None) => {
+                let all = 0..index.len();
+                (index, all)
+            }
+            (index, Some(dir)) => match index.and_then(|index| locate(&index, &dir).map(|id| (index, id))) {
+                Some((index, id)) => {
+                    let below = subtree(&index, id);
+                    (index, below)
+                }
+                None => {
+                    let index = build(&[dir], &AtomicU64::new(0));
+                    let below = 1..index.len();
+                    (Arc::new(index), below)
+                }
+            },
+        };
+        let ids = find_in(&index, &query, range);
         let hits = ids
             .par_iter()
             .take(limit)
@@ -498,6 +551,24 @@ mod tests {
         let index = sample();
         // "...sysREADME" would only exist across two neighbouring names.
         assert!(names(&index, "sysreadme").is_empty());
+    }
+
+    #[test]
+    fn searches_below_a_folder() {
+        let index = sample();
+        assert_eq!(locate(&index, "c:\\projekte\\").map(|id| index.name(id)), Some("Projekte"));
+        assert_eq!(locate(&index, "C:\\"), Some(0));
+        assert_eq!(locate(&index, "C:\\Projekte\\fehlt"), None);
+        let names = |dir: &str, query: &str| -> Vec<String> {
+            let below = subtree(&index, locate(&index, dir).unwrap());
+            find_in(&index, query, below).iter().map(|&id| index.name(id as usize).to_owned()).collect()
+        };
+        assert_eq!(names("C:\\Projekte", "readme"), ["readme", "README.md"]);
+        assert_eq!(names("C:\\Projekte\\mrfilesys", "readme"), ["README.md"]);
+        assert_eq!(names("C:\\Projekte\\mrfilesys", "*e*"), ["README.md", "Größe.txt"]);
+        // Neither the folder itself nor anything next to it.
+        assert!(names("C:\\Projekte", "projekte").is_empty());
+        assert!(names("C:\\Projekte", "bericht").is_empty());
     }
 
     #[test]

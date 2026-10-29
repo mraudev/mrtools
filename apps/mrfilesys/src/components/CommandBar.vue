@@ -80,7 +80,7 @@ const sortLabel = computed(() => sortOptions.find((o) => o.key === settings.sort
 
     <div class="mx-1 h-4 w-px bg-border" />
 
-    <Tip text="Terminal hier öffnen (Strg+T)">
+    <Tip text="Terminal hier öffnen (Strg+Umschalt+T)">
       <button class="icon-btn" aria-label="Terminal hier öffnen" :disabled="!inFolder" @click="openTerminal(state.path)">
         <SquareTerminal />
       </button>

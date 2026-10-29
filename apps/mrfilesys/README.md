@@ -4,6 +4,10 @@ Dateien und Ordner durchsuchen und verwalten – ähnlich wie der Windows-Explor
 
 ## Funktionen
 
+- **Tabs** in der Titelleiste: <kbd>Strg</kbd>+<kbd>T</kbd> neu, <kbd>Strg</kbd>+<kbd>W</kbd> schließen,
+  Mittelklick auf einen Ordner öffnet ihn im Hintergrund-Tab. Offene Tabs werden beim nächsten Start wiederhergestellt
+- **„mrfilesys hier öffnen“** im Kontextmenü des Explorers (in den Einstellungen einschalten; unter Windows 11 unter
+  „Weitere Optionen anzeigen“) – läuft mrfilesys schon, öffnet sich der Ordner dort in einem neuen Tab
 - **Seitenleiste** mit „Dieser PC“, eigenen **Favoriten**, Schnellzugriff (Desktop, Downloads, Dokumente, …)
   und Laufwerken mit Belegung; jeder Abschnitt lässt sich zuklappen
 - **Suche über alle Laufwerke** (<kbd>Strg</kbd>+<kbd>Umschalt</kbd>+<kbd>F</kbd> oder der Globus neben dem Suchfeld):
@@ -17,7 +21,8 @@ Dateien und Ordner durchsuchen und verwalten – ähnlich wie der Windows-Explor
 - **Adressleiste** mit Breadcrumbs – Klick ins Feld (<kbd>Strg</kbd>+<kbd>L</kbd>) zum Eintippen eines Pfads,
   auch mit Umgebungsvariablen wie `%appdata%`, `%temp%` oder `%userprofile%\Desktop`
 - **Liste** (sortierbar nach Name, Datum, Typ, Größe) oder **Kacheln**; auch sehr große Ordner bleiben flüssig
-- **Filter** im aktuellen Ordner (<kbd>Strg</kbd>+<kbd>F</kbd>), versteckte Dateien ein-/ausblenden (<kbd>Strg</kbd>+<kbd>H</kbd>)
+- **Suche im aktuellen Ordner samt Unterordnern** (<kbd>Strg</kbd>+<kbd>F</kbd>) – über den Index, Ordner außerhalb (USB, Netz) werden direkt gelesen
+- Versteckte Dateien ein-/ausblenden (<kbd>Strg</kbd>+<kbd>H</kbd>)
 - **Detailbereich** (<kbd>Alt</kbd>+<kbd>P</kbd>) mit Vorschau für Bilder, Videos, Audio und Text, Eigenschaften
   und Berechnung der Ordnergröße
 - **Kontextmenü**: Öffnen, Öffnen mit …, Terminal hier öffnen, Im Explorer zeigen, Favoriten, Ausschneiden/Kopieren/
@@ -64,7 +69,8 @@ Dateien und Ordner durchsuchen und verwalten – ähnlich wie der Windows-Explor
 | Strg+C / Strg+X / Strg+V           | Kopieren / Ausschneiden / Einfügen   |
 | Strg+Umschalt+C                    | Pfad kopieren                        |
 | Strg+Umschalt+N                    | Neuer Ordner                         |
-| Strg+A, Strg+T, Alt+Enter, F5      | Alles auswählen, Terminal, Eigenschaften, Aktualisieren |
+| Strg+T / Strg+W / Strg+Tab, Strg+1…9 | Neuer Tab / Tab schließen / Tab wechseln |
+| Strg+A, Strg+Umschalt+T, Alt+Enter, F5 | Alles auswählen, Terminal, Eigenschaften, Aktualisieren |
 
 ## Technik
 

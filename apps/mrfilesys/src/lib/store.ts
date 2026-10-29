@@ -36,6 +36,11 @@ interface Settings {
   /** Sidebar sections that are collapsed. */
   collapsed: string[];
   lastPath: string;
+  /** Folders of the open tabs. */
+  tabs: string[];
+  activeTab: number;
+  /** "mrfilesys hier öffnen" in Explorer's context menu. */
+  contextMenu: boolean;
   git: GitSettings;
 }
 
@@ -49,6 +54,9 @@ const defaults: Settings = {
   favorites: [],
   collapsed: [],
   lastPath: "",
+  tabs: [],
+  activeTab: 0,
+  contextMenu: false,
   git: { enabled: true, clean: false, colorNames: true, ignored: true, branch: true },
 };
 
@@ -304,10 +312,9 @@ export function sortBy(key: SortKey) {
 }
 
 export async function initStore() {
+  // Points the context menu at this (possibly updated or moved) program – not from dev builds.
+  if (settings.contextMenu && !import.meta.env.DEV) api.setContextMenu(true).catch(() => {});
   await loadPlaces();
-  const ok = settings.lastPath && (await navigate(settings.lastPath, { push: false }));
-  if (ok) state.history = [state.path];
-  else await navigate("", { push: false });
   // Changes made outside the app show up when coming back to the window.
   window.addEventListener("focus", () => refresh({ quiet: true }));
 }

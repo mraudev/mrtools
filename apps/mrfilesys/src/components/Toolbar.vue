@@ -109,7 +109,7 @@ function onSearchKeydown(event: KeyboardEvent) {
       </div>
     </div>
 
-    <Tip :text="search.everywhere ? 'Nur im Ordner filtern (Strg+F)' : 'Alle Laufwerke durchsuchen (Strg+Umschalt+F)'" side="bottom">
+    <Tip :text="search.everywhere ? 'Nur in diesem Ordner suchen (Strg+F)' : 'Alle Laufwerke durchsuchen (Strg+Umschalt+F)'" side="bottom">
       <button
         class="icon-btn ml-1"
         :class="search.everywhere && 'bg-accent/15 text-accent-text'"
@@ -129,7 +129,7 @@ function onSearchKeydown(event: KeyboardEvent) {
         class="input pr-7 pl-8"
         :class="search.everywhere && 'border-accent/60'"
         :placeholder="
-          search.everywhere ? 'Alle Laufwerke durchsuchen …' : state.path ? 'Im Ordner filtern (Strg+F)' : 'Filtern (Strg+F)'
+          search.everywhere ? 'Alle Laufwerke durchsuchen …' : state.path ? 'In diesem Ordner suchen (Strg+F)' : 'Filtern (Strg+F)'
         "
         spellcheck="false"
         @keydown="onSearchKeydown"
