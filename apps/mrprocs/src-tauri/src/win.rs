@@ -634,12 +634,23 @@ mod tests {
     fn suspends_resumes_and_ends() {
         let mut child = std::process::Command::new("ping").args(["-n", "30", "127.0.0.1"]).stdout(std::process::Stdio::null()).spawn().unwrap();
         let pid = child.id();
-        let suspended = || system_processes().get(&pid).map(|p| p.suspended);
+        // A thread shows up as suspended only once the suspension reaches it – a thread busy in a kernel
+        // wait (or a slow CI runner) takes a moment, so the state is polled for a while.
+        let suspended = |expected: bool| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            loop {
+                let state = system_processes().get(&pid).map(|p| p.suspended);
+                if state == Some(expected) || std::time::Instant::now() > deadline {
+                    return state;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+        };
 
         suspend(pid, true).unwrap();
-        assert_eq!(suspended(), Some(true));
+        assert_eq!(suspended(true), Some(true));
         suspend(pid, false).unwrap();
-        assert_eq!(suspended(), Some(false));
+        assert_eq!(suspended(false), Some(false));
         // The child inherits our priority class – on CI runners that is below normal.
         let target = if priority(pid) == 0x4000 { 0x20 } else { 0x4000 };
         set_priority(pid, target).unwrap();
