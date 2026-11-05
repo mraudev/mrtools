@@ -364,16 +364,76 @@ pub fn update_tray(app: &AppHandle) {
 pub fn on_state(app: &AppHandle, snapshot: &Value) {
     let Some(d) = Desktop::get(app) else { return };
     attention(app, &d, &snapshot["call"]);
+    let now = !snapshot["call"].is_null();
+    let was = d.in_call.swap(now, Ordering::SeqCst);
+    if was != now {
+        keep_awake(now);
+    }
     // Gespräch zu Ende, PC inzwischen gesperrt: jetzt abmelden
-    if d.in_call
-        .swap(!snapshot["call"].is_null(), Ordering::SeqCst)
-        && snapshot["call"].is_null()
-    {
+    if was && !now {
         apply_screen_lock(app);
     }
     let app = app.clone();
     // Tray-Text erst nach dem Speichern des Stands (on_state läuft vorher im SIP-Thread)
     tauri::async_runtime::spawn(async move { update_tray(&app) });
+}
+
+// --- Wach bleiben im Gespräch ---
+
+// Während eines Gesprächs darf Windows nicht in den Energiesparmodus gehen – sonst reißen Netzwerk und
+// Gespräch ab. Der Bildschirm darf trotzdem ausgehen. Wie Teams über eine Energieanforderung, die
+// „powercfg /requests“ als „mrphone: Gespräch läuft“ zeigt.
+fn keep_awake(on: bool) {
+    use windows::{
+        core::PWSTR,
+        Win32::{
+            Foundation::HANDLE,
+            System::{
+                Power::{
+                    PowerClearRequest, PowerCreateRequest, PowerRequestSystemRequired,
+                    PowerSetRequest,
+                },
+                Threading::{
+                    POWER_REQUEST_CONTEXT_SIMPLE_STRING, REASON_CONTEXT, REASON_CONTEXT_0,
+                },
+            },
+        },
+    };
+    static REQUEST: OnceLock<Option<isize>> = OnceLock::new();
+    let request = REQUEST.get_or_init(|| {
+        let mut reason: Vec<u16> = "mrphone: Gespräch läuft"
+            .encode_utf16()
+            .chain([0])
+            .collect();
+        let context = REASON_CONTEXT {
+            Version: 0, // POWER_REQUEST_CONTEXT_VERSION
+            Flags: POWER_REQUEST_CONTEXT_SIMPLE_STRING,
+            Reason: REASON_CONTEXT_0 {
+                SimpleReasonString: PWSTR(reason.as_mut_ptr()),
+            },
+        };
+        match unsafe { PowerCreateRequest(&context) } {
+            Ok(h) => Some(h.0 as isize),
+            Err(e) => {
+                crate::logger::warn(&format!("Energieanforderung nicht möglich: {e}"));
+                None
+            }
+        }
+    });
+    let Some(h) = *request else { return };
+    let h = HANDLE(h as *mut _);
+    let result = unsafe {
+        if on {
+            PowerSetRequest(h, PowerRequestSystemRequired)
+        } else {
+            PowerClearRequest(h, PowerRequestSystemRequired)
+        }
+    };
+    match result {
+        Ok(()) if on => crate::logger::info("Anruf läuft: PC bleibt wach (kein Energiesparmodus)"),
+        Ok(()) => crate::logger::info("Anruf zu Ende: Energiesparmodus wieder erlaubt"),
+        Err(e) => crate::logger::warn(&format!("Wach bleiben im Gespräch fehlgeschlagen: {e}")),
+    }
 }
 
 // --- Bildschirmsperre ---
