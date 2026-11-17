@@ -160,10 +160,13 @@ function since(ms: number) {
         <template v-if="search.total > LIMIT"> · die ersten {{ formatCount(LIMIT) }}</template>
         · {{ search.elapsedMs }} ms
         <template v-if="selected.size"> · {{ formatCount(selected.size) }} ausgewählt</template>
+        <span v-if="search.refreshing" class="ml-1 inline-flex items-center gap-1" title="Die Treffer stammen vom letzten Einlesen und werden gleich aktualisiert">
+          · <LoaderCircle class="size-3 animate-spin" />wird aktualisiert</span
+        >
       </span>
       <div class="flex-1" />
-      <Tip v-if="!search.everywhere" text="Ordner neu einlesen (F5) – findet, was seit Beginn der Suche dazukam" side="bottom">
-        <button class="icon-btn size-6 [&_svg]:size-3.5" aria-label="Ordner neu einlesen" :disabled="search.loading" @click="refreshSearch">
+      <Tip v-if="!search.everywhere" text="Neu suchen (F5) – Ordner außerhalb des Index (USB, Netz) werden dabei neu eingelesen" side="bottom">
+        <button class="icon-btn size-6 [&_svg]:size-3.5" aria-label="Neu suchen" :disabled="search.loading" @click="refreshSearch">
           <RefreshCw />
         </button>
       </Tip>
@@ -172,9 +175,10 @@ function since(ms: number) {
         Index wird erneuert … {{ formatCount(search.status.scanned) }} gelesen
       </span>
       <span v-else-if="search.status.entries" class="tabular-nums">
-        Index: {{ formatCount(search.status.entries) }} Einträge, {{ since(search.status.builtAt) }}
+        Index: {{ formatCount(search.status.entries) }} Einträge,
+        {{ search.status.watching ? "laufend aktuell" : since(search.status.builtAt) }}
       </span>
-      <Tip v-if="search.everywhere" text="Index jetzt erneuern – neue Dateien werden erst danach gefunden" side="bottom">
+      <Tip v-if="search.everywhere" text="Index komplett neu einlesen" side="bottom">
         <button class="icon-btn size-6 [&_svg]:size-3.5" aria-label="Index erneuern" :disabled="search.status.building" @click="rebuildIndex">
           <RefreshCw />
         </button>

@@ -116,6 +116,8 @@ export interface SearchResults {
   total: number;
   hits: SearchHit[];
   elapsedMs: number;
+  /** The folder is being read again in the background (`folder-read` follows). */
+  refreshing: boolean;
 }
 
 export interface IndexStatus {
@@ -125,4 +127,6 @@ export interface IndexStatus {
   building: boolean;
   /** Entries read so far while building. */
   scanned: number;
+  /** Kept current with the changes on the drives. */
+  watching: boolean;
 }

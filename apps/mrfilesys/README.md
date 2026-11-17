@@ -12,17 +12,20 @@ Dateien und Ordner durchsuchen und verwalten – ähnlich wie der Windows-Explor
   und Laufwerken mit Belegung; jeder Abschnitt lässt sich zuklappen
 - **Suche über alle Laufwerke** (<kbd>Strg</kbd>+<kbd>Umschalt</kbd>+<kbd>F</kbd> oder der Globus neben dem Suchfeld):
   findet Dateien und Ordner nach Namensteilen sofort, auch mit `*.pdf` oder Pfadteilen wie `projekte\ bericht`.
-  Dafür liest mrfilesys einmal alle Dateinamen der lokalen Laufwerke in einen eigenen Index ein (bei ~2,7 Mio.
-  Einträgen ca. 15 s im Hintergrund, ca. 190 MB im Speicher). Der Index wird auf der Platte zwischengespeichert,
-  beim Start erneuert, wenn er älter als 30 Minuten ist, und lässt sich per Knopf sofort erneuern
+  Dafür liest mrfilesys einmal alle Dateinamen der lokalen Laufwerke in einen eigenen Index ein (bei ~2,8 Mio.
+  Einträgen ca. 6–15 s im Hintergrund, ca. 250 MB im Speicher). Solange die App läuft, hält sie ihn mit den
+  Änderungsmeldungen von Windows laufend aktuell (neu, umbenannt, verschoben, gelöscht – ohne Adminrechte). Er wird
+  alle 5 Minuten auf der Platte gespeichert und beim Start neu eingelesen, wenn er älter als 10 Minuten ist
+  (was sich bei geschlossener App geändert hat, kennt er sonst nicht); per Knopf lässt er sich jederzeit neu einlesen
 - **Favoriten** für Ordner und Dateien: per Kontextmenü oder durch Ziehen auf „Favoriten“ bzw. zwischen zwei
   Favoriten anheften (auch aus dem Explorer), per Ziehen umsortieren. Mitten auf einen Favoriten-Ordner gezogen
   wird wie gewohnt hineinverschoben bzw. -kopiert
 - **Adressleiste** mit Breadcrumbs – Klick ins Feld (<kbd>Strg</kbd>+<kbd>L</kbd>) zum Eintippen eines Pfads,
   auch mit Umgebungsvariablen wie `%appdata%`, `%temp%` oder `%userprofile%\Desktop`
 - **Liste** (sortierbar nach Name, Datum, Typ, Größe) oder **Kacheln**; auch sehr große Ordner bleiben flüssig
-- **Suche im aktuellen Ordner samt Unterordnern** (<kbd>Strg</kbd>+<kbd>F</kbd>) – der Ordner wird beim Start
-  einer Suche eingelesen und beim Weitertippen wiederverwendet (<kbd>F5</kbd> liest neu ein). In den Treffern
+- **Suche im aktuellen Ordner samt Unterordnern** (<kbd>Strg</kbd>+<kbd>F</kbd>) – sofort und aktuell aus dem
+  Laufwerks-Index. Ordner außerhalb (USB, Netz) werden zur Suche eingelesen und beim Weitertippen wiederverwendet;
+  bei jeder neuen Suche werden sie im Hintergrund neu eingelesen (<kbd>F5</kbd> ebenso). In den Treffern
   lässt sich mehrfach auswählen (Strg/Umschalt+Klick, <kbd>Strg</kbd>+<kbd>A</kbd>), kopieren, ausschneiden und löschen
 - Versteckte Dateien ein-/ausblenden (<kbd>Strg</kbd>+<kbd>H</kbd>)
 - **Detailbereich** (<kbd>Alt</kbd>+<kbd>P</kbd>) mit Vorschau für Bilder, Videos, Audio und Text, Eigenschaften

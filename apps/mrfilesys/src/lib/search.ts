@@ -18,7 +18,9 @@ export const search = reactive({
   loading: false,
   /** The folder is being read for a new search there. */
   reading: false,
-  status: { entries: 0, builtAt: 0, building: false, scanned: 0 } as IndexStatus,
+  /** Hits are from an older reading of the folder; a fresh one runs in the background. */
+  refreshing: false,
+  status: { entries: 0, builtAt: 0, building: false, scanned: 0, watching: false } as IndexStatus,
 });
 
 /** Without a folder (the drive overview) the search box only filters the list. */
@@ -49,6 +51,7 @@ async function run() {
     search.hits = results.hits;
     search.total = results.total;
     search.elapsedMs = results.elapsedMs;
+    search.refreshing = results.refreshing;
   } catch (e) {
     if (mine === token) toastError("Suche fehlgeschlagen", e);
   } finally {
@@ -96,6 +99,8 @@ export async function initSearch() {
     () => state.path,
     () => (search.everywhere = false),
   );
+  // The folder was read again – the hits shown came from an older reading.
+  await listen("folder-read", () => search.refreshing && !search.everywhere && rerunSearch());
   await listen<IndexStatus>("index-status", ({ payload }) => {
     const finished = search.status.building && !payload.building;
     search.status = payload;
