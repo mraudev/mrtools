@@ -21,7 +21,9 @@ Dateien und Ordner durchsuchen und verwalten – ähnlich wie der Windows-Explor
 - **Adressleiste** mit Breadcrumbs – Klick ins Feld (<kbd>Strg</kbd>+<kbd>L</kbd>) zum Eintippen eines Pfads,
   auch mit Umgebungsvariablen wie `%appdata%`, `%temp%` oder `%userprofile%\Desktop`
 - **Liste** (sortierbar nach Name, Datum, Typ, Größe) oder **Kacheln**; auch sehr große Ordner bleiben flüssig
-- **Suche im aktuellen Ordner samt Unterordnern** (<kbd>Strg</kbd>+<kbd>F</kbd>) – über den Index, Ordner außerhalb (USB, Netz) werden direkt gelesen
+- **Suche im aktuellen Ordner samt Unterordnern** (<kbd>Strg</kbd>+<kbd>F</kbd>) – der Ordner wird beim Start
+  einer Suche eingelesen und beim Weitertippen wiederverwendet (<kbd>F5</kbd> liest neu ein). In den Treffern
+  lässt sich mehrfach auswählen (Strg/Umschalt+Klick, <kbd>Strg</kbd>+<kbd>A</kbd>), kopieren, ausschneiden und löschen
 - Versteckte Dateien ein-/ausblenden (<kbd>Strg</kbd>+<kbd>H</kbd>)
 - **Detailbereich** (<kbd>Alt</kbd>+<kbd>P</kbd>) mit Vorschau für Bilder, Videos, Audio und Text, Eigenschaften
   und Berechnung der Ordnergröße

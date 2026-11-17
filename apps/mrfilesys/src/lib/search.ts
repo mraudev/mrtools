@@ -16,6 +16,8 @@ export const search = reactive({
   total: 0,
   elapsedMs: 0,
   loading: false,
+  /** The folder is being read for a new search there. */
+  reading: false,
   status: { entries: 0, builtAt: 0, building: false, scanned: 0 } as IndexStatus,
 });
 
@@ -24,6 +26,8 @@ export const searching = () => (search.everywhere || state.path !== "") && state
 
 let token = 0;
 let timer: ReturnType<typeof setTimeout> | undefined;
+/** A folder search reads the folder once when it starts and reuses that while the query is refined. */
+let fresh = true;
 
 async function run() {
   const query = state.filter.trim();
@@ -34,9 +38,13 @@ async function run() {
     search.loading = false;
     return;
   }
+  const within = search.everywhere ? null : state.path;
+  const reread = within !== null && fresh;
+  fresh = false;
   search.loading = true;
+  search.reading = reread;
   try {
-    const results = await api.search(query, LIMIT, search.everywhere ? null : state.path);
+    const results = await api.search(query, LIMIT, within, reread);
     if (mine !== token) return;
     search.hits = results.hits;
     search.total = results.total;
@@ -44,8 +52,19 @@ async function run() {
   } catch (e) {
     if (mine === token) toastError("Suche fehlgeschlagen", e);
   } finally {
-    if (mine === token) search.loading = false;
+    if (mine === token) search.loading = search.reading = false;
   }
+}
+
+/** Searches again, e.g. after deleting hits (they are left out then). */
+export function rerunSearch() {
+  if (searching()) run();
+}
+
+/** Reads the folder again (F5) – finds what was added since the search started. */
+export function refreshSearch() {
+  fresh = true;
+  run();
 }
 
 /** Starts searching everywhere and puts the cursor into the search box. */
@@ -67,7 +86,12 @@ export async function initSearch() {
       timer = setTimeout(run, 120);
     },
   );
-  // Opening a folder (also from the results) goes back to filtering that folder.
+  // A new search (or one in another folder) reads the folder again.
+  watch(
+    () => [state.filter.trim() === "", state.path, search.everywhere],
+    () => (fresh = true),
+  );
+  // Opening a folder (also from the results) goes back to searching that folder.
   watch(
     () => state.path,
     () => (search.everywhere = false),

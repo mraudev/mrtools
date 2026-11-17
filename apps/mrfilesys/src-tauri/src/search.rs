@@ -12,7 +12,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
-        Arc, Mutex, RwLock,
+        Arc, Mutex, OnceLock, RwLock,
     },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -310,13 +310,23 @@ fn find_in(index: &Index, query: &str, range: Range<usize>) -> Vec<u32> {
     ids
 }
 
+/// Lower case, `C:\` keeps its backslash, `C:\Users\` loses it.
+fn normalized(dir: &str) -> String {
+    let mut dir = dir.to_lowercase();
+    if dir.len() > 3 && dir.ends_with('\\') {
+        dir.pop();
+    }
+    dir
+}
+
+/// `dir` is `root` or below it (both normalized).
+fn covers(root: &str, dir: &str) -> bool {
+    dir == root || dir.strip_prefix(root).is_some_and(|rest| root.ends_with('\\') || rest.starts_with('\\'))
+}
+
 /// Id of the folder `dir` in the index, if it is in there.
 fn locate(index: &Index, dir: &str) -> Option<usize> {
-    let mut target = dir.to_lowercase();
-    // `C:\` keeps its backslash, `C:\Users\` loses it.
-    if target.len() > 3 && target.ends_with('\\') {
-        target.pop();
-    }
+    let target = normalized(dir);
     let name = Path::new(&target).file_name().map_or(target.clone(), |n| n.to_string_lossy().into_owned());
     (0..index.len()).into_par_iter().find_any(|&id| {
         index.is_dir[id] && index.lower_name(id) == name && index.path(id).to_string_lossy().to_lowercase() == target
@@ -332,6 +342,52 @@ fn subtree(index: &Index, id: usize) -> Range<usize> {
     id + 1..end
 }
 
+/// Folders searched lately (with their subfolders) – the most recent last.
+const FOLDER_CACHE: usize = 3;
+
+/// The tree below one folder, read when a search there starts and reused while it goes on.
+struct FolderIndex {
+    /// Normalized.
+    root: String,
+    /// Filled once; searches arriving while it is being read wait for it instead of reading again.
+    index: Arc<OnceLock<Arc<Index>>>,
+}
+
+/// The index for searching below `dir` and the range of its entries. `fresh` reads the folder again –
+/// done when a new search starts, so it finds what changed since.
+fn folder_index(cache: &Mutex<Vec<FolderIndex>>, dir: &str, fresh: bool) -> (Arc<Index>, Range<usize>) {
+    let target = normalized(dir);
+    let (root, cell) = {
+        let mut cache = cache.lock().unwrap();
+        if fresh {
+            cache.retain(|f| !covers(&f.root, &target));
+        }
+        let entry = match cache.iter().position(|f| covers(&f.root, &target)) {
+            Some(i) => cache.remove(i),
+            None => FolderIndex { root: target.clone(), index: Arc::default() },
+        };
+        let found = (entry.root.clone(), entry.index.clone());
+        cache.push(entry);
+        if cache.len() > FOLDER_CACHE {
+            cache.remove(0);
+        }
+        found
+    };
+    let index = cell.get_or_init(|| Arc::new(build(&[dir.to_owned()], &AtomicU64::new(0)))).clone();
+    if root == target {
+        let below = 1..index.len();
+        return (index, below);
+    }
+    match locate(&index, &target) {
+        Some(id) => {
+            let below = subtree(&index, id);
+            (index, below)
+        }
+        // Created after the parent folder was read.
+        None => folder_index(cache, dir, true),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Commands
 
@@ -341,6 +397,7 @@ pub struct Search {
     building: AtomicBool,
     scanned: AtomicU64,
     cache_file: Mutex<Option<PathBuf>>,
+    folders: Arc<Mutex<Vec<FolderIndex>>>,
 }
 
 #[derive(Serialize, Clone)]
@@ -444,16 +501,18 @@ pub struct Results {
     elapsed_ms: u64,
 }
 
-/// Searches everywhere, or with `within` only below that folder. A folder that is not in the index (other
-/// drives, newer than the index, index still being built) is read right away instead.
+/// Searches everywhere (the drive index), or with `within` only below that folder: its tree is read when
+/// a search there starts (`fresh`) and reused while the query is refined.
 #[tauri::command]
 pub async fn search(
     search: State<'_, Search>,
     query: String,
     limit: usize,
     within: Option<String>,
+    fresh: bool,
 ) -> Result<Results, String> {
     let index = search.index.read().unwrap().clone();
+    let folders = search.folders.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let started = Instant::now();
         let (index, range) = match (index, within) {
@@ -462,39 +521,31 @@ pub async fn search(
                 let all = 0..index.len();
                 (index, all)
             }
-            (index, Some(dir)) => match index.and_then(|index| locate(&index, &dir).map(|id| (index, id))) {
-                Some((index, id)) => {
-                    let below = subtree(&index, id);
-                    (index, below)
-                }
-                None => {
-                    let index = build(&[dir], &AtomicU64::new(0));
-                    let below = 1..index.len();
-                    (Arc::new(index), below)
-                }
-            },
+            (_, Some(dir)) => folder_index(&folders, &dir, fresh),
         };
         let ids = find_in(&index, &query, range);
-        let hits = ids
+        let shown = &ids[..ids.len().min(limit)];
+        let hits: Vec<Hit> = shown
             .par_iter()
-            .take(limit)
-            .map(|&id| {
+            .filter_map(|&id| {
                 let path = index.path(id as usize);
-                // Size and date are read now (the index has names only); deleted files stay in the list.
-                let meta = fs::metadata(&path).ok();
-                Hit {
+                // Size and date are read now (the index has names only); deleted entries are left out.
+                let meta = fs::metadata(&path).or_else(|_| fs::symlink_metadata(&path)).ok()?;
+                Some(Hit {
                     name: index.name(id as usize).to_owned(),
                     is_dir: index.is_dir[id as usize],
-                    size: meta.as_ref().filter(|m| m.is_file()).map_or(0, |m| m.len()),
+                    size: if meta.is_file() { meta.len() } else { 0 },
                     modified: meta
-                        .and_then(|m| m.modified().ok())
+                        .modified()
+                        .ok()
                         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
                         .map_or(0, |d| d.as_millis() as u64),
                     path: path.to_string_lossy().into_owned(),
-                }
+                })
             })
             .collect();
-        Results { total: ids.len() as u64, hits, elapsed_ms: started.elapsed().as_millis() as u64 }
+        let gone = (shown.len() - hits.len()) as u64;
+        Results { total: ids.len() as u64 - gone, hits, elapsed_ms: started.elapsed().as_millis() as u64 }
     })
     .await
     .map_err(|e| e.to_string())
@@ -611,6 +662,44 @@ mod tests {
         let hits = find(&index, "needle");
         assert_eq!(hits.len(), 1);
         assert_eq!(index.path(hits[0] as usize), dir.join("a").join("b").join("needle.txt"));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn folders_cover_their_subfolders() {
+        assert!(covers("c:\\projekte", "c:\\projekte"));
+        assert!(covers("c:\\projekte", "c:\\projekte\\app"));
+        assert!(!covers("c:\\projekte", "c:\\projekte2"));
+        assert!(covers("c:\\", "c:\\projekte"));
+        assert!(!covers("c:\\", "d:\\"));
+    }
+
+    #[test]
+    fn caches_folder_trees() {
+        let dir = std::env::temp_dir().join(format!("mrfilesys-folders-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("sub")).unwrap();
+        fs::write(dir.join("sub").join("alt.txt"), "").unwrap();
+        let root = dir.to_string_lossy().into_owned();
+        let sub = dir.join("sub").to_string_lossy().into_owned();
+        let cache = Mutex::new(Vec::new());
+        let names = |(index, range): (Arc<Index>, Range<usize>), query: &str| -> Vec<String> {
+            find_in(&index, query, range).iter().map(|&id| index.name(id as usize).to_owned()).collect()
+        };
+
+        assert_eq!(names(folder_index(&cache, &root, true), "txt"), ["alt.txt"]);
+        fs::write(dir.join("sub").join("neu.txt"), "").unwrap();
+        // While the search goes on the tree read at its start is used – also for a subfolder.
+        assert_eq!(names(folder_index(&cache, &root, false), "txt"), ["alt.txt"]);
+        assert_eq!(names(folder_index(&cache, &sub, false), "txt"), ["alt.txt"]);
+        assert_eq!(cache.lock().unwrap().len(), 1);
+        // A new search reads it again.
+        assert_eq!(names(folder_index(&cache, &sub, true), "txt"), ["alt.txt", "neu.txt"]);
+        // A folder created after the tree was read is read on its own.
+        fs::create_dir_all(dir.join("sub").join("später")).unwrap();
+        fs::write(dir.join("sub").join("später").join("x.txt"), "").unwrap();
+        let later = dir.join("sub").join("später").to_string_lossy().into_owned();
+        assert_eq!(names(folder_index(&cache, &later, false), "txt"), ["x.txt"]);
         fs::remove_dir_all(dir).unwrap();
     }
 

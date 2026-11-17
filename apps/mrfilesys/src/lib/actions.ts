@@ -2,6 +2,7 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { toast, toastError } from "@mrtools/ui/lib/toast";
 import { api } from "./api";
 import { deletePermanently } from "./deletion";
+import { rerunSearch } from "./search";
 import { startTransfer } from "./transfer";
 import { isInside, parentPath } from "./paths";
 import { navigate, refresh, selectedEntries, selectOnly, state } from "./store";
@@ -97,6 +98,7 @@ export async function deletePaths(paths: string[], permanently = false, confirme
   if (permanently) return deletePermanently(paths);
   await attempt("Löschen fehlgeschlagen", () => api.recycle(paths));
   await refresh();
+  rerunSearch();
 }
 
 export function deleteSelection(permanently = false) {

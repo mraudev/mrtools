@@ -33,7 +33,7 @@ import { initDeletion } from "./lib/deletion";
 import { initExternalDrop } from "./lib/dnd";
 import { initGit } from "./lib/git";
 import { initTransfer } from "./lib/transfer";
-import { initSearch, search, searchEverywhere, searching } from "./lib/search";
+import { initSearch, refreshSearch, search, searchEverywhere, searching } from "./lib/search";
 import { closeTab, cycleTab, initTabs, openTab, selectTab, tabs } from "./lib/tabs";
 import { baseName } from "./lib/paths";
 import { goBack, goForward, goUp, initStore, refresh, selectAll, selectedEntries, settings, state } from "./lib/store";
@@ -58,7 +58,7 @@ function onKeydown(event: KeyboardEvent) {
   };
 
   // Work everywhere, also while typing in the filter.
-  if (event.key === "F5") return run(() => refresh());
+  if (event.key === "F5") return run(() => (searching() ? refreshSearch() : refresh()));
   if ((ctrl && key === "l") || (event.altKey && key === "d") || event.key === "F4") return run(() => toolbar.value?.editAddress());
   if (ctrl && event.shiftKey && key === "f") return run(searchEverywhere);
   if ((ctrl && key === "f") || event.key === "F3") {
@@ -77,7 +77,8 @@ function onKeydown(event: KeyboardEvent) {
   if (ctrl && key === "w") return run(() => closeTab(tabs.active));
   if (ctrl && event.key === "Tab") return run(() => cycleTab(event.shiftKey ? -1 : 1));
   if (ctrl && /^[1-9]$/.test(event.key)) return run(() => selectTab(Number(event.key)));
-  if (typing || state.confirmDelete.length || state.properties.length || state.settingsOpen) return;
+  // While hits are shown the folder keys do nothing – the results handle their own.
+  if (typing || state.confirmDelete.length || state.properties.length || state.settingsOpen || searching()) return;
 
   if (event.key === "Backspace") return run(goUp);
   if (ctrl && event.shiftKey && key === "n") return run(() => createNew(true));

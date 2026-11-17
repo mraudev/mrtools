@@ -4,6 +4,7 @@ import { toast, toastError } from "@mrtools/ui/lib/toast";
 import { api } from "./api";
 import { formatCount } from "./format";
 import { baseName } from "./paths";
+import { rerunSearch } from "./search";
 import { refresh } from "./store";
 import type { DeleteDone, DeleteProgress } from "./types";
 
@@ -29,6 +30,7 @@ function seconds(ms: number) {
 function finish(done: DeleteDone) {
   deletions.delete(done.id);
   refresh({ quiet: true });
+  rerunSearch();
   const count = `${formatCount(done.deleted)} ${done.deleted === 1 ? "Element" : "Elemente"}`;
   if (done.cancelled) {
     toast("info", "Löschen abgebrochen", `${count} wurden bereits gelöscht.`);
