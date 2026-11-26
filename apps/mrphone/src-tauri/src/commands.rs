@@ -628,6 +628,13 @@ pub fn log_audio(text: String) {
     crate::logger::info(&format!("[Audio] {text}"));
 }
 
+// Bedienung der Oberfläche, die fürs Protokoll wichtig ist (z. B. ignorierte Klicks).
+#[tauri::command]
+pub fn log_ui(text: String) {
+    let text: String = text.chars().take(300).collect();
+    crate::logger::info(&format!("[Oberfläche] {text}"));
+}
+
 // Fehler der Headset-Anbindung (WebHID in der Oberfläche) ins Protokoll.
 #[tauri::command]
 pub fn log_headset(text: String) {

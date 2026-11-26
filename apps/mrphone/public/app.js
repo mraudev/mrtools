@@ -80,6 +80,10 @@ let hidCallKeys = []; // Fundstellen des Anruf-Knopfs im Media-Modus (Consumer P
 let hidRingLoc = null; // Fundstelle des Ring-Bits im Output-Report
 let hidOffHookLoc = null; // Fundstelle des Off-Hook-Bits im Output-Report
 const hidOut = new Map(); // reportId -> Uint8Array: gepufferte Ausgabe (LEDs/Signale)
+// Kurz nach dem Annehmen zählt Auflegen nicht – weder per Knopf (rückt nach dem Annehmen in die Mitte, ein
+// Doppelklick traf ihn) noch per Headset (meldet beim Umschalten auf „im Gespräch“ evtl. kurz „aufgelegt“).
+const HANGUP_GUARD_MS = 1000;
+let answeredAt = -Infinity; // Zeitpunkt des Annehmens (performance.now())
 let callRate = 8000; // Audioabtastrate des aktuellen Gesprächs (8 kHz G.711 / 16 kHz G.722)
 let transferOpen = false; // Weiterleiten-Leiste im Gespräch sichtbar
 let speakerMode = false; // Freisprech-Profil aktiv (eigenes Ein-/Ausgabegerät)
@@ -1689,34 +1693,46 @@ function readBit(view, bit) {
   return byte < view.byteLength ? (view.getUint8(byte) >> (bit & 7)) & 1 : null;
 }
 
-// Ein Ausgabe-Bit (Ring/Off-Hook) am Headset setzen; Bits je Report werden gepuffert.
-async function setOutput(loc, on) {
-  if (!loc || !hidDevice) return;
-  let buf = hidOut.get(loc.reportId);
-  if (!buf) { buf = new Uint8Array(loc.byteLength); hidOut.set(loc.reportId, buf); }
-  const byte = loc.bit >> 3;
-  const mask = 1 << (loc.bit & 7);
-  const next = on ? buf[byte] | mask : buf[byte] & ~mask;
-  if (next === buf[byte]) return;
-  buf[byte] = next;
-  try { await hidDevice.sendReport(loc.reportId, buf); } catch (err) { headsetLog('sendReport: ' + err.message); }
+// Ausgabe-Bits (Ring/Off-Hook) am Headset setzen: [[Fundstelle, an?], …]. Bits je Report werden gepuffert;
+// jeder geänderte Report geht genau einmal raus, mit allen Bits zugleich.
+async function setOutputs(bits) {
+  if (!hidDevice) return;
+  const changed = new Map(); // reportId -> Puffer
+  for (const [loc, on] of bits) {
+    if (!loc) continue;
+    let buf = hidOut.get(loc.reportId);
+    if (!buf) { buf = new Uint8Array(loc.byteLength); hidOut.set(loc.reportId, buf); }
+    const byte = loc.bit >> 3;
+    const mask = 1 << (loc.bit & 7);
+    const next = on ? buf[byte] | mask : buf[byte] & ~mask;
+    if (next === buf[byte]) continue;
+    buf[byte] = next;
+    changed.set(loc.reportId, buf);
+  }
+  for (const [id, buf] of changed) {
+    try { await hidDevice.sendReport(id, buf.slice()); } catch (err) { headsetLog('sendReport: ' + err.message); }
+  }
 }
 
 // Headset-Signale an den Anrufzustand angleichen: Ring bei eingehendem Anruf, Off-Hook im Gespräch.
 // „Im Gespräch“ (Off-Hook) meldet die App dem Headset immer: Dongles mit Softphone-Integration (z. B.
 // Jabra Link 390) geben das Mikrofon erst dann frei. Klingeln am Headset nur mit der Annehmen-Option.
+// Beide Bits liegen beim Link 390 im selben Report und gehen zusammen raus: Getrennt gesendet kam beim
+// Annehmen erst „klingelt nicht, nicht im Gespräch“ an – das Headset hielt den Anruf für beendet und meldete
+// „aufgelegt“, mrphone legte gleich wieder auf.
 function updateHeadsetCall() {
   if (!hidDevice) return;
   const call = state.call;
-  setOutput(hidRingLoc, headsetAnswer && !!call && call.state === 'incoming');
-  setOutput(hidOffHookLoc, !!call && call.state !== 'incoming');
+  setOutputs([
+    [hidRingLoc, headsetAnswer && !!call && call.state === 'incoming'],
+    [hidOffHookLoc, !!call && call.state !== 'incoming'],
+  ]);
 }
 
 // Headset freigeben (anderes Gesprächs-Gerät gewählt): Signale zurücksetzen, nicht mehr auswerten.
 function releaseHeadset() {
   if (!hidDevice) return;
-  setOutput(hidRingLoc, false);
-  setOutput(hidOffHookLoc, false);
+  setOutputs([[hidRingLoc, false], [hidOffHookLoc, false]]);
   hidDevice.oninputreport = null;
   hidDevice = null;
 }
@@ -1724,6 +1740,7 @@ function releaseHeadset() {
 function answerFromHeadset() {
   if (hidAnswered || Date.now() < hidArmedAt) return;
   hidAnswered = true;
+  answeredAt = performance.now();
   send({ type: 'answer' });
 }
 
@@ -1739,7 +1756,12 @@ function onHidInput(e) {
       const prev = hidHook;
       hidHook = hook;
       if (call && call.state === 'incoming' && prev === 0 && hook === 1) { answerFromHeadset(); return; }
-      if (call && call.state !== 'incoming' && prev === 1 && hook === 0) { send({ type: 'hangup' }); return; }
+      if (call && call.state !== 'incoming' && prev === 1 && hook === 0) {
+        const since = performance.now() - answeredAt;
+        if (since < HANGUP_GUARD_MS) headsetLog(`Auflegen vom Headset ${Math.round(since)} ms nach dem Annehmen ignoriert`);
+        else send({ type: 'hangup' });
+        return;
+      }
     }
   }
   // (2) Fallback: Anruf-Knopf im Media-Modus, nur beim Klingeln als „annehmen“ werten
@@ -2082,8 +2104,18 @@ $('backspace').onclick = () => {
   $('number').value = $('number').value.slice(0, -1);
   renderSuggest();
 };
-$('answerBtn').onclick = () => send({ type: 'answer' });
-$('hangupBtn').onclick = () => send({ type: 'hangup' });
+$('answerBtn').onclick = () => {
+  answeredAt = performance.now();
+  send({ type: 'answer' });
+};
+$('hangupBtn').onclick = () => {
+  const since = performance.now() - answeredAt;
+  if (since < HANGUP_GUARD_MS) {
+    window.phone.logUi(`Klick auf Auflegen ${Math.round(since)} ms nach dem Annehmen ignoriert`);
+    return;
+  }
+  send({ type: 'hangup' });
+};
 $('muteBtn').onclick = () => setMuted(!muted);
 $('holdBtn').onclick = toggleHold;
 $('transferBtn').onclick = openTransfer;
@@ -2261,6 +2293,8 @@ setInterval(updateCallStatus, 1000);
 window.phone.onState((s) => {
   const wasTalking = !!state.call && state.call.state === 'active'; // nur verbundene Gespräche, nicht verpasste
   const newCall = !state.call && !!s.call;
+  // Angenommen (auch über die Windows-Meldung oder das Headset): Auflegen kurz sperren, s. HANGUP_GUARD_MS
+  if (state.call && state.call.state === 'incoming' && s.call && s.call.state === 'active') answeredAt = performance.now();
   state = s;
   render();
   // Neues Gespräch: Geräteliste frisch lesen und zuordnen – spätestens jetzt das richtige Gerät

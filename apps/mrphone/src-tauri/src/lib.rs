@@ -180,6 +180,7 @@ pub fn run() {
             commands::open_log,
             commands::log_headset,
             commands::log_audio,
+            commands::log_ui,
             desktop::window_control,
             updater::get_update,
             updater::install_update,

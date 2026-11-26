@@ -52,6 +52,9 @@
     logAudio: (text) => {
       invoke('log_audio', { text: String(text) }).catch(() => {});
     },
+    logUi: (text) => {
+      invoke('log_ui', { text: String(text) }).catch(() => {});
+    },
     getUpdate: () => invoke('get_update'),
     installUpdate: () => invoke('install_update'),
     onUpdate: (cb) => on('phone:update', cb),
